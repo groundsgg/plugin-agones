@@ -1,0 +1,36 @@
+version: v2beta1
+name: plugin-agones-velocity
+
+deployments:
+  app:
+    namespace: games
+    helm:
+      releaseName: plugin-agones-velocity
+      chart:
+        name: ../../charts/charts/agones
+        version: 0.1.0
+      values:
+        image:
+          repository: ghcr.io/groundsgg/velocity
+          tag: 0.4.0
+        serverType: velocity
+        command: ["/bin/sh", "-c", "sleep infinity"]
+
+dev:
+  app:
+    # Search for the container that runs this image
+    imageSelector: ghcr.io/groundsgg/velocity
+    # Synchronize the plugin jar file to the plugins directory
+    sync:
+      - path: ./build/libs/*.jar:/app/plugins/*.jar
+        initialSync: preferLocal
+        file: true
+    # Open a terminal and use the following command to start it
+    terminal:
+      disableReplace: true
+      command: |
+        echo "Use ./start.sh to start the server"
+        /bin/sh
+    # Forward the following ports to be able to access your application via localhost
+    ports:
+      - port: "25565"
