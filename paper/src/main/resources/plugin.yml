@@ -1,0 +1,5 @@
+name: GroundsPluginAgones
+version: ${VERSION}
+main: gg.grounds.GroundsPluginAgones
+
+api-version: 1.21
