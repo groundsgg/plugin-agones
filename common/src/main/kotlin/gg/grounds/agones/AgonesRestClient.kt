@@ -74,7 +74,7 @@ private constructor(private val baseUri: URI, private val httpClient: HttpClient
     }
 
     companion object {
-        fun fromEnvironment(): AgonesRestClient {
+        fun forSidecar(): AgonesRestClient {
             val baseUri = URI("http://localhost:9358")
             val httpClient =
                 HttpClient(CIO) {

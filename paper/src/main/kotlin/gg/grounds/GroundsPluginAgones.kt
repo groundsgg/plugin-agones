@@ -52,7 +52,7 @@ class GroundsPluginAgones : JavaPlugin() {
                     logger.log(Level.SEVERE, message, error)
                 }
             }
-        return AgonesHelper(AgonesRestClient.fromEnvironment(), agonesLogger, coroutineScope)
+        return AgonesHelper(AgonesRestClient.forSidecar(), agonesLogger, coroutineScope)
     }
 
     private fun registerListeners(agonesHelper: AgonesHelper) {
