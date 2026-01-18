@@ -7,12 +7,12 @@ deployments:
     helm:
       releaseName: plugin-agones-velocity
       chart:
-        name: ../../charts/charts/agones
+        name: oci://ghcr.io/groundsgg/charts/agones-fleet
         version: 0.1.0
       values:
         image:
           repository: ghcr.io/groundsgg/velocity
-          tag: 0.4.0
+          tag: 0.6.0
         serverType: velocity
         command: ["/bin/sh", "-c", "sleep infinity"]
 

@@ -1,5 +1,6 @@
 package gg.grounds.agones
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -47,6 +48,8 @@ class AgonesHelper(
         val isInState =
             try {
                 agonesClient.isGameServerInState(desiredState)
+            } catch (error: CancellationException) {
+                throw error
             } catch (error: Throwable) {
                 logger.error("Failed to check Agones GameServer state", error)
                 return
@@ -59,6 +62,8 @@ class AgonesHelper(
         try {
             action()
             logger.info(successMessage)
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Throwable) {
             logger.error(failureMessage, error)
         }
