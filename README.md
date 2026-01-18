@@ -22,3 +22,6 @@ devspace use namespace games
 devspace dev
 ```
 
+## License
+
+Licensed under the GNU Affero General Public License v3.0
