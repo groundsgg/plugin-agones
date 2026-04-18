@@ -4,14 +4,18 @@ import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent
 import com.velocitypowered.api.proxy.ProxyServer
 
-class DiscoveryPlayerListener(private val proxyServer: ProxyServer) {
+class DiscoveryPlayerListener(
+    private val proxyServer: ProxyServer,
+    private val lobbyServers: Set<String>,
+) {
 
     @Subscribe
     fun onPlayerChooseInitialServer(event: PlayerChooseInitialServerEvent) {
-        if (event.initialServer.isPresent || proxyServer.allServers.isEmpty()) {
-            return
-        }
+        if (event.initialServer.isPresent) return
 
-        event.setInitialServer(proxyServer.allServers.first())
+        val lobby = proxyServer.allServers.firstOrNull { it.serverInfo.name in lobbyServers }
+        if (lobby != null) {
+            event.setInitialServer(lobby)
+        }
     }
 }

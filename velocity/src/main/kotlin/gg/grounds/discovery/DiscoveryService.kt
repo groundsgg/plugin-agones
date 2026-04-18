@@ -20,6 +20,7 @@ class DiscoveryService(
     private val gson = Gson()
     private lateinit var customObjectsApi: CustomObjectsApi
     private lateinit var pollTask: ScheduledTask
+    val lobbyServers: MutableSet<String> = mutableSetOf()
 
     fun start() {
         customObjectsApi = createCustomObjectsApi() ?: return
@@ -55,7 +56,10 @@ class DiscoveryService(
     }
 
     private fun registerListeners() {
-        proxyServer.eventManager.register(plugin, DiscoveryPlayerListener(proxyServer))
+        proxyServer.eventManager.register(
+            plugin,
+            DiscoveryPlayerListener(proxyServer, lobbyServers),
+        )
     }
 
     private fun schedulePolling() {
@@ -115,9 +119,14 @@ class DiscoveryService(
                 continue
             }
 
+            val serverType = gameServer.metadata.labels[SERVER_TYPE_LABEL]
             val serverInfo = ServerInfo(serverName, InetSocketAddress(address, 25565))
-            logger.info("Registering server: {}", serverName)
+            logger.info("Registering server: {} (type={})", serverName, serverType)
             proxyServer.registerServer(serverInfo)
+
+            if (serverType == "lobby") {
+                lobbyServers.add(serverName)
+            }
         }
     }
 
@@ -131,6 +140,7 @@ class DiscoveryService(
             if (server.serverInfo.name !in runningServerNames) {
                 logger.info("Unregistering server: {}", server.serverInfo.name)
                 proxyServer.unregisterServer(server.serverInfo)
+                lobbyServers.remove(server.serverInfo.name)
             }
         }
     }
@@ -140,7 +150,8 @@ class DiscoveryService(
         private const val VERSION = "v1"
         private const val PLURAL = "gameservers"
         private const val NAMESPACE = "games"
-        private const val LABEL_SELECTOR = "grounds/server-type=paper"
+        private const val SERVER_TYPE_LABEL = "grounds/server-type"
+        private const val LABEL_SELECTOR = "$SERVER_TYPE_LABEL in (lobby,game,match)"
         private val RUNNING_STATES = setOf("Ready", "Allocated", "Reserved")
     }
 }
