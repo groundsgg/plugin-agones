@@ -9,6 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import net.minestom.server.MinecraftServer
+import net.minestom.server.event.Event
+import net.minestom.server.event.EventNode
 import net.minestom.server.timer.Task
 import net.minestom.server.timer.TaskSchedule
 import org.slf4j.Logger
@@ -16,22 +18,34 @@ import org.slf4j.LoggerFactory
 
 class GroundsPluginAgones {
     private val logger: Logger = LoggerFactory.getLogger(GroundsPluginAgones::class.java)
-    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var coroutineScope: CoroutineScope? = null
     private var fallbackTask: Task? = null
+    private var playerEventNode: EventNode<Event>? = null
 
     fun enable() {
+        disable()
+
         logger.info("Minestom Agones plugin initialized")
 
-        val agonesHelper = createAgonesHelper()
+        val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        this.coroutineScope = coroutineScope
+
+        val agonesHelper = createAgonesHelper(coroutineScope)
         setGameServerState(agonesHelper)
 
-        registerListeners(agonesHelper)
+        playerEventNode = registerListeners(agonesHelper)
         scheduleFallback(agonesHelper)
     }
 
     fun disable() {
         fallbackTask?.cancel()
-        coroutineScope.cancel()
+        fallbackTask = null
+
+        playerEventNode?.let(MinecraftServer.getGlobalEventHandler()::removeChild)
+        playerEventNode = null
+
+        coroutineScope?.cancel()
+        coroutineScope = null
     }
 
     private fun setGameServerState(agonesHelper: AgonesHelper) {
@@ -42,7 +56,7 @@ class GroundsPluginAgones {
         }
     }
 
-    private fun createAgonesHelper(): AgonesHelper {
+    private fun createAgonesHelper(coroutineScope: CoroutineScope): AgonesHelper {
         val agonesLogger =
             object : AgonesLogger {
                 override fun info(message: String) {
@@ -56,8 +70,11 @@ class GroundsPluginAgones {
         return AgonesHelper(AgonesRestClient.forSidecar(), agonesLogger, coroutineScope)
     }
 
-    private fun registerListeners(agonesHelper: AgonesHelper) {
-        PlayerListener(agonesHelper).register(MinecraftServer.getGlobalEventHandler())
+    private fun registerListeners(agonesHelper: AgonesHelper): EventNode<Event> {
+        val eventNode = EventNode.all("grounds-plugin-agones")
+        PlayerListener(agonesHelper).register(eventNode)
+        MinecraftServer.getGlobalEventHandler().addChild(eventNode)
+        return eventNode
     }
 
     private fun scheduleFallback(agonesHelper: AgonesHelper) {
