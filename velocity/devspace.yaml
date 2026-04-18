@@ -8,12 +8,13 @@ deployments:
       releaseName: plugin-agones-velocity
       chart:
         name: oci://ghcr.io/groundsgg/charts/agones-fleet
-        version: 0.1.0
+        version: 0.2.0
       values:
         image:
           repository: ghcr.io/groundsgg/velocity
           tag: 0.6.0
-        serverType: velocity
+        serverPlatform: velocity
+        serverRole: proxy
         command: ["/bin/sh", "-c", "sleep infinity"]
 
 dev:
