@@ -9,6 +9,7 @@ import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.apis.CustomObjectsApi
 import io.kubernetes.client.util.Config
 import java.net.InetSocketAddress
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import org.slf4j.Logger
 
@@ -20,7 +21,7 @@ class DiscoveryService(
     private val gson = Gson()
     private lateinit var customObjectsApi: CustomObjectsApi
     private lateinit var pollTask: ScheduledTask
-    val lobbyServers: MutableSet<String> = mutableSetOf()
+    private val lobbyServers: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     fun start() {
         customObjectsApi = createCustomObjectsApi() ?: return

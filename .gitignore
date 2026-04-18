@@ -39,6 +39,7 @@ nb-configuration.xml
 /.quarkus/cli/plugins/
 # TLS Certificates
 .certs/
+.kotlin
 
 # Ignore DevSpace cache and log folder
 .devspace/
