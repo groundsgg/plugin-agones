@@ -6,6 +6,7 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent
 import com.velocitypowered.api.plugin.Plugin
 import com.velocitypowered.api.proxy.ProxyServer
+import gg.grounds.command.AgonesCommand
 import gg.grounds.discovery.DiscoveryService
 import gg.grounds.gameserver.GameServerStateManager
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,11 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
         stateManager =
             GameServerStateManager(this, proxyServer, logger, coroutineScope).also { it.start() }
         discoveryService = DiscoveryService(this, proxyServer, logger).also { it.start() }
+
+        proxyServer.commandManager.register(
+            proxyServer.commandManager.metaBuilder("agones").build(),
+            AgonesCommand(proxyServer, { serverName -> discoveryService.getServerRole(serverName) }),
+        )
     }
 
     @Subscribe
