@@ -42,3 +42,6 @@ nb-configuration.xml
 
 # Ignore DevSpace cache and log folder
 .devspace/
+
+# Codex
+.codex

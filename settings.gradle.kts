@@ -1,6 +1,6 @@
 rootProject.name = "plugin-agones"
 
-include("common", "velocity", "paper")
+include("common", "velocity", "paper", "minestom")
 
 pluginManagement {
     repositories {
