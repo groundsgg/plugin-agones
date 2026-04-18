@@ -32,8 +32,6 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
-        logger.info("Velocity Agones plugin initialized")
-
         stateManager =
             GameServerStateManager(this, proxyServer, logger, coroutineScope).also { it.start() }
         discoveryService = DiscoveryService(this, proxyServer, logger).also { it.start() }
@@ -42,6 +40,8 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
             proxyServer.commandManager.metaBuilder("agones").build(),
             AgonesCommand(proxyServer, { serverName -> discoveryService.getServerRole(serverName) }),
         )
+
+        logger.info("Started Agones plugin successfully (platform=velocity)")
     }
 
     @Subscribe

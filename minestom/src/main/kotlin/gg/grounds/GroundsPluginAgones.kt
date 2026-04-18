@@ -25,8 +25,6 @@ class GroundsPluginAgones {
     fun enable() {
         disable()
 
-        logger.info("Minestom Agones plugin initialized")
-
         val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         this.coroutineScope = coroutineScope
 
@@ -35,6 +33,8 @@ class GroundsPluginAgones {
 
         playerEventNode = registerListeners(agonesHelper)
         scheduleFallback(agonesHelper)
+
+        logger.info("Started Agones plugin successfully (platform=minestom)")
     }
 
     fun disable() {

@@ -16,42 +16,21 @@ class AgonesHelper(
     private val scope: CoroutineScope,
 ) {
     fun allocate() {
-        scope.launch {
-            ensureState(
-                desiredState = "Allocated",
-                successMessage = "Agones GameServer marked Allocated",
-                failureMessage = "Failed to mark Agones GameServer Allocated",
-            ) {
-                agonesClient.allocate()
-            }
-        }
+        scope.launch { ensureState(desiredState = "Allocated") { agonesClient.allocate() } }
     }
 
     fun ready() {
-        scope.launch {
-            ensureState(
-                desiredState = "Ready",
-                successMessage = "Agones GameServer marked Ready",
-                failureMessage = "Failed to mark Agones GameServer Ready",
-            ) {
-                agonesClient.ready()
-            }
-        }
+        scope.launch { ensureState(desiredState = "Ready") { agonesClient.ready() } }
     }
 
-    private suspend fun ensureState(
-        desiredState: String,
-        successMessage: String,
-        failureMessage: String,
-        action: suspend () -> Unit,
-    ) {
+    private suspend fun ensureState(desiredState: String, action: suspend () -> Unit) {
         val isInState =
             try {
                 agonesClient.isGameServerInState(desiredState)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                logger.error("Failed to check Agones GameServer state", error)
+                logger.error("Failed to check Agones GameServer state (state=$desiredState)", error)
                 return
             }
 
@@ -61,11 +40,11 @@ class AgonesHelper(
 
         try {
             action()
-            logger.info(successMessage)
+            logger.info("Updated Agones GameServer state successfully (state=$desiredState)")
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
-            logger.error(failureMessage, error)
+            logger.error("Failed to update Agones GameServer state (state=$desiredState)", error)
         }
     }
 }

@@ -17,13 +17,13 @@ class GroundsPluginAgones : JavaPlugin() {
     private lateinit var fallbackTask: BukkitTask
 
     override fun onEnable() {
-        logger.info("Paper Agones plugin initialized")
-
         val agonesHelper = createAgonesHelper()
         setGameServerState(agonesHelper)
 
         registerListeners(agonesHelper)
         scheduleFallback(agonesHelper)
+
+        logger.info("Started Agones plugin successfully (platform=paper)")
     }
 
     override fun onDisable() {
