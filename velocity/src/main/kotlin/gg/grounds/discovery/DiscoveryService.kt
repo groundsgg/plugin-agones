@@ -22,6 +22,7 @@ class DiscoveryService(
     private lateinit var customObjectsApi: CustomObjectsApi
     private lateinit var pollTask: ScheduledTask
     private val lobbyServers: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val serverRoles: MutableMap<String, String> = ConcurrentHashMap()
 
     fun start() {
         customObjectsApi = createCustomObjectsApi() ?: return
@@ -36,6 +37,8 @@ class DiscoveryService(
             pollTask.cancel()
         }
     }
+
+    fun getServerRole(serverName: String): String? = serverRoles[serverName]
 
     private fun createCustomObjectsApi(): CustomObjectsApi? {
         return try {
@@ -106,10 +109,20 @@ class DiscoveryService(
         currentServers: Map<String, RegisteredServer>,
     ) {
         for (gameServer in runningGameServers) {
-            val serverName = gameServer.metadata?.name
+            val metadata = gameServer.metadata
+            val serverName = metadata?.name
             if (serverName == null) {
                 logger.error("Game server $gameServer is missing a name in metadata")
                 continue
+            }
+
+            val serverType = metadata.labels[SERVER_TYPE_LABEL] ?: continue
+            serverRoles[serverName] = serverType
+
+            if (serverType == LOBBY_ROLE) {
+                lobbyServers.add(serverName)
+            } else {
+                lobbyServers.remove(serverName)
             }
 
             if (serverName in currentServers) continue
@@ -120,14 +133,9 @@ class DiscoveryService(
                 continue
             }
 
-            val serverType = gameServer.metadata.labels[SERVER_TYPE_LABEL]
             val serverInfo = ServerInfo(serverName, InetSocketAddress(address, 25565))
             logger.info("Registering server: {} (type={})", serverName, serverType)
             proxyServer.registerServer(serverInfo)
-
-            if (serverType == "lobby") {
-                lobbyServers.add(serverName)
-            }
         }
     }
 
@@ -142,6 +150,7 @@ class DiscoveryService(
                 logger.info("Unregistering server: {}", server.serverInfo.name)
                 proxyServer.unregisterServer(server.serverInfo)
                 lobbyServers.remove(server.serverInfo.name)
+                serverRoles.remove(server.serverInfo.name)
             }
         }
     }
@@ -152,6 +161,7 @@ class DiscoveryService(
         private const val PLURAL = "gameservers"
         private const val NAMESPACE = "games"
         private const val SERVER_TYPE_LABEL = "grounds/server-type"
+        private const val LOBBY_ROLE = "lobby"
         private const val LABEL_SELECTOR = "$SERVER_TYPE_LABEL in (lobby,game,match)"
         private val RUNNING_STATES = setOf("Ready", "Allocated", "Reserved")
     }

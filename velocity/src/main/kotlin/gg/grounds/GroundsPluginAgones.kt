@@ -40,7 +40,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
 
         proxyServer.commandManager.register(
             proxyServer.commandManager.metaBuilder("agones").build(),
-            AgonesCommand(proxyServer, discoveryService.lobbyServers),
+            AgonesCommand(proxyServer, { serverName -> discoveryService.getServerRole(serverName) }),
         )
     }
 
