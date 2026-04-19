@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/groundsgg/plugin-agones/compare/v0.2.0...v0.2.1) (2026-04-19)
+
+
+### Bug Fixes
+
+* use our newer conventions plugin ([#30](https://github.com/groundsgg/plugin-agones/issues/30)) ([1c9c979](https://github.com/groundsgg/plugin-agones/commit/1c9c9792b68218383662b6ec8ab39f78015998e6))
+
 ## [0.2.0](https://github.com/groundsgg/plugin-agones/compare/v0.1.0...v0.2.0) (2026-04-19)
 
 
