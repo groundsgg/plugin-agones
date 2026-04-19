@@ -46,7 +46,12 @@ class DiscoveryService(
             Configuration.setDefaultApiClient(client)
             CustomObjectsApi(client)
         } catch (error: Throwable) {
-            logger.warn("Agones discovery init failed: ${error.message}", error)
+            logger.warn(
+                "Failed to initialize Agones discovery client (namespace={}, labelSelector={})",
+                NAMESPACE,
+                LABEL_SELECTOR,
+                error,
+            )
             null
         }
     }
@@ -54,8 +59,11 @@ class DiscoveryService(
     private fun unregisterPreconfiguredServers() {
         val configuredServers = proxyServer.allServers.toList()
         for (server in configuredServers) {
-            logger.info("Removing pre-configured server: {}", server.serverInfo.name)
             proxyServer.unregisterServer(server.serverInfo)
+            logger.info(
+                "Removed pre-configured server successfully (serverName={})",
+                server.serverInfo.name,
+            )
         }
     }
 
@@ -99,7 +107,12 @@ class DiscoveryService(
                 state != null && state in RUNNING_STATES
             }
         } catch (error: Throwable) {
-            logger.warn("Agones poll failed: ${error.message}", error)
+            logger.warn(
+                "Failed to fetch running Agones GameServers (namespace={}, labelSelector={})",
+                NAMESPACE,
+                LABEL_SELECTOR,
+                error,
+            )
             return emptyList()
         }
     }
@@ -112,7 +125,12 @@ class DiscoveryService(
             val metadata = gameServer.metadata
             val serverName = metadata?.name
             if (serverName == null) {
-                logger.error("Game server $gameServer is missing a name in metadata")
+                logger.error(
+                    "Failed to register Agones GameServer (namespace={}, reason=missing_server_name, labels={}, state={})",
+                    NAMESPACE,
+                    metadata?.labels,
+                    gameServer.status?.state,
+                )
                 continue
             }
 
@@ -129,13 +147,20 @@ class DiscoveryService(
 
             val address = gameServer.status?.addresses?.firstOrNull { it.type == "PodIP" }?.address
             if (address == null) {
-                logger.error("Game server $serverName is missing an address in status")
+                logger.error(
+                    "Failed to register Agones GameServer (serverName={}, reason=missing_pod_ip)",
+                    serverName,
+                )
                 continue
             }
 
             val serverInfo = ServerInfo(serverName, InetSocketAddress(address, 25565))
-            logger.info("Registering server: {} (type={})", serverName, serverType)
             proxyServer.registerServer(serverInfo)
+            logger.info(
+                "Registered proxy server successfully (serverName={}, serverType={})",
+                serverName,
+                serverType,
+            )
         }
     }
 
@@ -147,10 +172,13 @@ class DiscoveryService(
 
         for (server in currentServers.values) {
             if (server.serverInfo.name !in runningServerNames) {
-                logger.info("Unregistering server: {}", server.serverInfo.name)
                 proxyServer.unregisterServer(server.serverInfo)
                 lobbyServers.remove(server.serverInfo.name)
                 serverRoles.remove(server.serverInfo.name)
+                logger.info(
+                    "Unregistered proxy server successfully (serverName={})",
+                    server.serverInfo.name,
+                )
             }
         }
     }
