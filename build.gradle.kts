@@ -1,1 +1,1 @@
-plugins { id("gg.grounds.root") version "0.1.1" }
+plugins { id("gg.grounds.base-conventions") version "0.5.1" }

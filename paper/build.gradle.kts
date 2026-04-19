@@ -1,3 +1,3 @@
-plugins { id("gg.grounds.paper") version "0.1.1" }
+plugins { id("gg.grounds.paper-conventions") }
 
 dependencies { implementation(project(":common")) }
