@@ -41,7 +41,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
             AgonesCommand(proxyServer, { serverName -> discoveryService.getServerRole(serverName) }),
         )
 
-        logger.info("Started Agones plugin successfully (platform=velocity)")
+        logger.info("Initialized Agones plugin (platform=velocity)")
     }
 
     @Subscribe

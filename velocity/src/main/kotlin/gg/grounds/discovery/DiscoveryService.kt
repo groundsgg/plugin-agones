@@ -47,7 +47,9 @@ class DiscoveryService(
             CustomObjectsApi(client)
         } catch (error: Throwable) {
             logger.warn(
-                "Failed to initialize Agones discovery client (namespace=$NAMESPACE, labelSelector=$LABEL_SELECTOR)",
+                "Failed to initialize Agones discovery client (namespace={}, labelSelector={})",
+                NAMESPACE,
+                LABEL_SELECTOR,
                 error,
             )
             null
@@ -106,7 +108,9 @@ class DiscoveryService(
             }
         } catch (error: Throwable) {
             logger.warn(
-                "Failed to fetch running Agones GameServers (namespace=$NAMESPACE, labelSelector=$LABEL_SELECTOR)",
+                "Failed to fetch running Agones GameServers (namespace={}, labelSelector={})",
+                NAMESPACE,
+                LABEL_SELECTOR,
                 error,
             )
             return emptyList()
@@ -122,7 +126,10 @@ class DiscoveryService(
             val serverName = metadata?.name
             if (serverName == null) {
                 logger.error(
-                    "Failed to register Agones GameServer (namespace=$NAMESPACE, reason=missing_server_name)"
+                    "Failed to register Agones GameServer (namespace={}, reason=missing_server_name, labels={}, state={})",
+                    NAMESPACE,
+                    metadata?.labels,
+                    gameServer.status?.state,
                 )
                 continue
             }
@@ -141,7 +148,8 @@ class DiscoveryService(
             val address = gameServer.status?.addresses?.firstOrNull { it.type == "PodIP" }?.address
             if (address == null) {
                 logger.error(
-                    "Failed to register Agones GameServer (serverName=$serverName, reason=missing_pod_ip)"
+                    "Failed to register Agones GameServer (serverName={}, reason=missing_pod_ip)",
+                    serverName,
                 )
                 continue
             }
