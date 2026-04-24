@@ -2,7 +2,7 @@ plugins { id("gg.grounds.kotlin-conventions") }
 
 dependencies {
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-    api("com.google.code.gson:gson:2.11.0")
+    api("com.google.code.gson:gson:2.14.0")
     implementation("io.ktor:ktor-client-core:3.4.2")
     implementation("io.ktor:ktor-client-cio:3.4.2")
 
