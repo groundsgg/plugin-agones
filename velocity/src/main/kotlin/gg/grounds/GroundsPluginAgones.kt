@@ -7,6 +7,7 @@ import com.velocitypowered.api.event.proxy.ProxyShutdownEvent
 import com.velocitypowered.api.plugin.Plugin
 import com.velocitypowered.api.proxy.ProxyServer
 import gg.grounds.command.AgonesCommand
+import gg.grounds.discovery.DiscoveryConfig
 import gg.grounds.discovery.DiscoveryService
 import gg.grounds.gameserver.GameServerStateManager
 import kotlinx.coroutines.CoroutineScope
@@ -32,9 +33,23 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
+        val discoveryConfig = DiscoveryConfig.fromEnv()
+        logger.info(
+            "Loaded Agones discovery config (namespace={}, labelSelector={}, lobbyLabel={}, lobbyValue={}, runningStates={}, pollInterval={}s, addressType={}, port={})",
+            discoveryConfig.namespace,
+            discoveryConfig.labelSelector.ifEmpty { "<none>" },
+            discoveryConfig.lobbyLabel.ifEmpty { "<none>" },
+            discoveryConfig.lobbyValue,
+            discoveryConfig.runningStates,
+            discoveryConfig.pollInterval.toSeconds(),
+            discoveryConfig.addressType,
+            discoveryConfig.port,
+        )
+
         stateManager =
             GameServerStateManager(this, proxyServer, logger, coroutineScope).also { it.start() }
-        discoveryService = DiscoveryService(this, proxyServer, logger).also { it.start() }
+        discoveryService =
+            DiscoveryService(this, proxyServer, logger, discoveryConfig).also { it.start() }
 
         proxyServer.commandManager.register(
             proxyServer.commandManager.metaBuilder("agones").build(),

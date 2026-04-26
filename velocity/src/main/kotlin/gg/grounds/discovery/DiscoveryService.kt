@@ -17,6 +17,7 @@ class DiscoveryService(
     private val plugin: Any,
     private val proxyServer: ProxyServer,
     private val logger: Logger,
+    private val config: DiscoveryConfig = DiscoveryConfig.fromEnv(),
 ) {
     private val gson = Gson()
     private lateinit var customObjectsApi: CustomObjectsApi
@@ -48,8 +49,8 @@ class DiscoveryService(
         } catch (error: Throwable) {
             logger.warn(
                 "Failed to initialize Agones discovery client (namespace={}, labelSelector={})",
-                NAMESPACE,
-                LABEL_SELECTOR,
+                config.namespace,
+                config.labelSelector,
                 error,
             )
             null
@@ -78,7 +79,7 @@ class DiscoveryService(
         pollTask =
             proxyServer.scheduler
                 .buildTask(plugin, this::updateRegisteredGameServers)
-                .repeat(2, TimeUnit.SECONDS)
+                .repeat(config.pollInterval.toSeconds(), TimeUnit.SECONDS)
                 .schedule()
     }
 
@@ -94,23 +95,29 @@ class DiscoveryService(
     private fun fetchRunningGameServers(): List<GameServer> {
         if (!this::customObjectsApi.isInitialized) return emptyList()
         try {
-            val raw =
-                customObjectsApi
-                    .listNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL)
-                    .labelSelector(LABEL_SELECTOR)
-                    .execute()
+            val request =
+                customObjectsApi.listNamespacedCustomObject(
+                    GROUP,
+                    VERSION,
+                    config.namespace,
+                    PLURAL,
+                )
+            if (config.labelSelector.isNotEmpty()) {
+                request.labelSelector(config.labelSelector)
+            }
+            val raw = request.execute()
 
             val list = gson.fromJson(gson.toJson(raw), GameServerList::class.java)
 
             return list.items.filter { gameServer ->
                 val state = gameServer.status?.state
-                state != null && state in RUNNING_STATES
+                state != null && state in config.runningStates
             }
         } catch (error: Throwable) {
             logger.warn(
                 "Failed to fetch running Agones GameServers (namespace={}, labelSelector={})",
-                NAMESPACE,
-                LABEL_SELECTOR,
+                config.namespace,
+                config.labelSelector,
                 error,
             )
             return emptyList()
@@ -127,17 +134,17 @@ class DiscoveryService(
             if (serverName == null) {
                 logger.error(
                     "Failed to register Agones GameServer (namespace={}, reason=missing_server_name, labels={}, state={})",
-                    NAMESPACE,
+                    config.namespace,
                     metadata?.labels,
                     gameServer.status?.state,
                 )
                 continue
             }
 
-            val serverType = metadata.labels[SERVER_TYPE_LABEL] ?: continue
+            val serverType = resolveServerType(metadata.labels) ?: continue
             serverRoles[serverName] = serverType
 
-            if (serverType == LOBBY_ROLE) {
+            if (serverType == config.lobbyValue) {
                 lobbyServers.add(serverName)
             } else {
                 lobbyServers.remove(serverName)
@@ -145,16 +152,18 @@ class DiscoveryService(
 
             if (serverName in currentServers) continue
 
-            val address = gameServer.status?.addresses?.firstOrNull { it.type == "PodIP" }?.address
+            val address =
+                gameServer.status?.addresses?.firstOrNull { it.type == config.addressType }?.address
             if (address == null) {
                 logger.error(
-                    "Failed to register Agones GameServer (serverName={}, reason=missing_pod_ip)",
+                    "Failed to register Agones GameServer (serverName={}, reason=missing_address, addressType={})",
                     serverName,
+                    config.addressType,
                 )
                 continue
             }
 
-            val serverInfo = ServerInfo(serverName, InetSocketAddress(address, 25565))
+            val serverInfo = ServerInfo(serverName, InetSocketAddress(address, config.port))
             proxyServer.registerServer(serverInfo)
             logger.info(
                 "Registered proxy server successfully (serverName={}, serverType={})",
@@ -163,6 +172,17 @@ class DiscoveryService(
             )
         }
     }
+
+    /**
+     * Returns the server's role label, or [DiscoveryConfig.lobbyValue] when role-based filtering is
+     * disabled (`GROUNDS_AGONES_LOBBY_LABEL=""`). When filtering is enabled and the label is
+     * missing, the GameServer is skipped (returns null).
+     */
+    private fun resolveServerType(labels: Map<String, String>): String? =
+        when {
+            config.lobbyLabel.isEmpty() -> config.lobbyValue
+            else -> labels[config.lobbyLabel]
+        }
 
     private fun unregisterServersThatAreNoLongerRunning(
         runningGameServers: List<GameServer>,
@@ -187,10 +207,5 @@ class DiscoveryService(
         private const val GROUP = "agones.dev"
         private const val VERSION = "v1"
         private const val PLURAL = "gameservers"
-        private const val NAMESPACE = "games"
-        private const val SERVER_TYPE_LABEL = "grounds/server-type"
-        private const val LOBBY_ROLE = "lobby"
-        private const val LABEL_SELECTOR = "$SERVER_TYPE_LABEL in (lobby,game,match)"
-        private val RUNNING_STATES = setOf("Ready", "Allocated", "Reserved")
     }
 }

@@ -14,6 +14,37 @@ discovered gameservers to the Velocity proxy.
 - `minestom` — Minestom library: same responsibility as `paper`, for Minestom-based
   gameservers
 
+## Velocity discovery configuration
+
+The Velocity module reads its configuration from environment variables. Every
+key is optional; the defaults preserve the historic prod behaviour, so existing
+deployments do not need to set anything.
+
+| Env var                          | Default                                         | Notes                                                                 |
+| -------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------- |
+| `GROUNDS_AGONES_NAMESPACE`       | `games`                                         | Falls back to `POD_NAMESPACE` (Downward API) before the default       |
+| `GROUNDS_AGONES_LABEL_SELECTOR`  | `grounds/server-type in (lobby,game,match)`     | Empty string disables k8s-side label filtering                        |
+| `GROUNDS_AGONES_LOBBY_LABEL`     | `grounds/server-type`                           | Empty string treats every running GameServer as a lobby               |
+| `GROUNDS_AGONES_LOBBY_VALUE`     | `lobby`                                         | Value of `lobbyLabel` that marks a GameServer as a lobby              |
+| `GROUNDS_AGONES_RUNNING_STATES`  | `Ready,Allocated,Reserved`                      | Comma-separated Agones states considered "running"                    |
+| `GROUNDS_AGONES_POLL_INTERVAL`   | `2s`                                            | Accepts `Ns`, `Nm`, `Nh`                                              |
+| `GROUNDS_AGONES_ADDRESS_TYPE`    | `PodIP`                                         | Which entry of `status.addresses` to dial (`PodIP`, `ExternalIP`, …)  |
+| `GROUNDS_AGONES_PORT`            | `25565`                                         | TCP port on the GameServer                                            |
+
+Typical Helm chart wiring uses a `ConfigMap` consumed via `envFrom`, plus
+`POD_NAMESPACE` from the Downward API for clusters where the proxy should
+watch its own namespace:
+
+```yaml
+env:
+- name: POD_NAMESPACE
+  valueFrom:
+    fieldRef: { fieldPath: metadata.namespace }
+envFrom:
+- configMapRef:
+    name: agones-discovery-config
+```
+
 ## Build
 
 ```bash
