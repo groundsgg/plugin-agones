@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/groundsgg/plugin-agones/compare/v0.2.1...v0.3.0) (2026-04-26)
+
+
+### Features
+
+* **velocity:** make discovery config env-var driven ([#36](https://github.com/groundsgg/plugin-agones/issues/36)) ([4735f8c](https://github.com/groundsgg/plugin-agones/commit/4735f8cf9a7e29fc119dca3877392fe5b712606c))
+
 ## [0.2.1](https://github.com/groundsgg/plugin-agones/compare/v0.2.0...v0.2.1) (2026-04-19)
 
 
