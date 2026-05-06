@@ -17,6 +17,27 @@ class GroundsPluginAgones : JavaPlugin() {
     private lateinit var fallbackTask: BukkitTask
 
     override fun onEnable() {
+        // The Agones SDK sidecar is only injected by the cluster's
+        // mutating webhook into pods that the controller has wrapped
+        // in a GameServer / Fleet. A plain plugin-paper Deployment
+        // (the default for non-gamemode workloads on Grounds) has no
+        // sidecar — the plugin's calls to localhost:9358 then loop on
+        // SocketException + log SEVERE every 10s, which is loud noise
+        // for an inert feature.
+        //
+        // The Agones webhook always sets `AGONES_SDK_HTTP_PORT` (and
+        // its grpc twin) on the GameServer container's env. Use that
+        // as the activation gate: present → real init; absent → log
+        // once and stay quiet.
+        val sidecarPort = System.getenv("AGONES_SDK_HTTP_PORT")
+        if (sidecarPort.isNullOrBlank()) {
+            logger.info(
+                "Skipped Agones plugin (reason=no_sidecar, " +
+                    "AGONES_SDK_HTTP_PORT_unset); pod is not a GameServer"
+            )
+            return
+        }
+
         val agonesHelper = createAgonesHelper()
         setGameServerState(agonesHelper)
 
