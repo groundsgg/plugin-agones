@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/groundsgg/plugin-agones/compare/v0.3.0...v0.4.0) (2026-05-06)
+
+
+### Features
+
+* **paper:** stay inert when no Agones SDK sidecar is present ([#40](https://github.com/groundsgg/plugin-agones/issues/40)) ([a37cf40](https://github.com/groundsgg/plugin-agones/commit/a37cf4061acd509be62ca618e538643ff8af341c))
+
 ## [0.3.0](https://github.com/groundsgg/plugin-agones/compare/v0.2.1...v0.3.0) (2026-04-26)
 
 
