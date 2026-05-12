@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/groundsgg/plugin-agones/compare/v0.4.0...v0.5.0) (2026-05-12)
+
+
+### Features
+
+* update to minecraft 26.1.2 ([#43](https://github.com/groundsgg/plugin-agones/issues/43)) ([57405fe](https://github.com/groundsgg/plugin-agones/commit/57405fec3c7bf5b5bf1c96fc7e150bf766e048c6))
+
 ## [0.4.0](https://github.com/groundsgg/plugin-agones/compare/v0.3.0...v0.4.0) (2026-05-06)
 
 
