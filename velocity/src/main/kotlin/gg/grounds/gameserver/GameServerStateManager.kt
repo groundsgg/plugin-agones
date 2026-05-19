@@ -14,11 +14,31 @@ class GameServerStateManager(
     private val proxyServer: ProxyServer,
     private val logger: Logger,
     private val coroutineScope: CoroutineScope,
+    /**
+     * Indirection for tests. The real value reads the Agones SDK env vars Agones injects into
+     * containers it manages.
+     */
+    private val sidecarDetector: () -> Boolean = ::detectAgonesSidecar,
 ) {
     private lateinit var agonesHelper: AgonesHelper
     private var fallbackTask: ScheduledTask? = null
 
     fun start() {
+        // Only Agones-managed pods (i.e. proxies deployed as part of a
+        // Fleet) have the SDK sidecar listening on localhost:9358. A
+        // proxy deployed as a plain Kubernetes Deployment — the most
+        // common shape for small dev clusters — has no sidecar, and
+        // calling `allocate()` / `ready()` against `localhost:9358`
+        // throws ConnectException on a 10s loop. Skip the self-state
+        // path when no sidecar is detected; DiscoveryService and the
+        // backend-server registration keep working regardless.
+        if (!sidecarDetector()) {
+            logger.info(
+                "Agones SDK sidecar not detected (AGONES_SDK_HTTP_PORT unset). " +
+                    "Skipping proxy self-state management; discovery + routing keep running."
+            )
+            return
+        }
         agonesHelper = createAgonesHelper()
         setGameServerState()
         registerListeners()
@@ -67,3 +87,12 @@ class GameServerStateManager(
                 .schedule()
     }
 }
+
+/**
+ * Heuristic: Agones injects `AGONES_SDK_HTTP_PORT` (default 9358) and `AGONES_SDK_GRPC_PORT` into
+ * the GameServer container's environment. Presence of either is a sufficient signal that the SDK
+ * sidecar is running alongside this pod and the REST endpoint is reachable on localhost. Absence =>
+ * plain Deployment, no sidecar.
+ */
+private fun detectAgonesSidecar(): Boolean =
+    System.getenv("AGONES_SDK_HTTP_PORT") != null || System.getenv("AGONES_SDK_GRPC_PORT") != null
