@@ -6,6 +6,6 @@ dependencies {
     implementation("io.ktor:ktor-client-core:3.4.3")
     implementation("io.ktor:ktor-client-cio:3.4.3")
 
-    testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
