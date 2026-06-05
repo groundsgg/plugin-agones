@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/groundsgg/plugin-agones/compare/v0.5.0...v0.5.1) (2026-05-19)
+
+
+### Bug Fixes
+
+* **velocity:** skip sidecar wiring when Agones SDK is not present ([#48](https://github.com/groundsgg/plugin-agones/issues/48)) ([41369ab](https://github.com/groundsgg/plugin-agones/commit/41369abfeacc754886453f616d0af88d182b49b2))
+
 ## [0.5.0](https://github.com/groundsgg/plugin-agones/compare/v0.4.0...v0.5.0) (2026-05-12)
 
 
