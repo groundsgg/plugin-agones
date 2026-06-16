@@ -16,7 +16,7 @@ class GroundsPluginAgonesProviderTest {
         assertTrue(module is GroundsPluginAgones)
         assertEquals("grounds.agones", provider.id)
         assertEquals("local", provider.version)
-        assertEquals(setOf(ServerType.MINIGAME), provider.serverTypes)
+        assertEquals(ServerType.entries.toSet(), provider.serverTypes)
         assertEquals(provider.id, provider.descriptor.id)
         assertEquals(provider.version, provider.descriptor.version)
         assertEquals(provider.id, module.id)
