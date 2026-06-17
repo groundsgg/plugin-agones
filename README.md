@@ -11,8 +11,14 @@ discovered gameservers to the Velocity proxy.
   and registers them with Velocity
 - `paper` — Paper plugin: keeps the gameserver's Agones state in sync with the
   player count
-- `minestom` — Minestom library: same responsibility as `paper`, for Minestom-based
-  gameservers
+- `minestom` — Grounds Minestom runtime module: same responsibility as `paper`,
+  exposed through `GroundsModuleProvider` for runtime composition
+
+## Minestom runtime module
+
+The Minestom target publishes a `GroundsModuleProvider` via `ServiceLoader`.
+Grounds Minestom runtime can discover it through the provider service file and
+install it for `MINIGAME` server types. The module id is `grounds.agones`.
 
 ## Velocity discovery configuration
 

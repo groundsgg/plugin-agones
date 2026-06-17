@@ -4,6 +4,8 @@ import gg.grounds.agones.AgonesHelper
 import gg.grounds.agones.AgonesLogger
 import gg.grounds.agones.AgonesRestClient
 import gg.grounds.listener.PlayerListener
+import gg.grounds.runtime.GroundsModule
+import gg.grounds.runtime.GroundsServerContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,28 +18,42 @@ import net.minestom.server.timer.TaskSchedule
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
-class GroundsPluginAgones {
+class GroundsPluginAgones : GroundsModule {
     private val logger: Logger = LoggerFactory.getLogger(GroundsPluginAgones::class.java)
     private var coroutineScope: CoroutineScope? = null
+    private var agonesHelper: AgonesHelper? = null
     private var fallbackTask: Task? = null
     private var playerEventNode: EventNode<Event>? = null
 
+    override val id: String = MODULE_ID
+
     fun enable() {
-        disable()
+        install()
+        start()
+    }
 
-        val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        this.coroutineScope = coroutineScope
+    fun disable() {
+        stop()
+    }
 
-        val agonesHelper = createAgonesHelper(coroutineScope)
+    override fun install(ctx: GroundsServerContext) {
+        install()
+    }
+
+    override fun start() {
+        val agonesHelper =
+            checkNotNull(agonesHelper) { "Agones module must be installed before start" }
+
+        fallbackTask?.cancel()
+        fallbackTask = null
+
         setGameServerState(agonesHelper)
-
-        playerEventNode = registerListeners(agonesHelper)
         scheduleFallback(agonesHelper)
 
         logger.info("Started Agones plugin successfully (platform=minestom)")
     }
 
-    fun disable() {
+    override fun stop() {
         fallbackTask?.cancel()
         fallbackTask = null
 
@@ -46,6 +62,18 @@ class GroundsPluginAgones {
 
         coroutineScope?.cancel()
         coroutineScope = null
+        agonesHelper = null
+    }
+
+    private fun install() {
+        stop()
+        val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        this.coroutineScope = coroutineScope
+
+        val agonesHelper = createAgonesHelper(coroutineScope)
+        this.agonesHelper = agonesHelper
+
+        playerEventNode = registerListeners(agonesHelper)
     }
 
     private fun setGameServerState(agonesHelper: AgonesHelper) {
@@ -85,5 +113,9 @@ class GroundsPluginAgones {
                     TaskSchedule.seconds(1),
                     TaskSchedule.seconds(10),
                 )
+    }
+
+    companion object {
+        const val MODULE_ID = "grounds.agones"
     }
 }
