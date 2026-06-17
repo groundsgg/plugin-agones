@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/groundsgg/plugin-agones/compare/v0.5.1...v0.6.0) (2026-06-17)
+
+
+### Features
+
+* expose agones minestom runtime module ([#51](https://github.com/groundsgg/plugin-agones/issues/51)) ([71bba7a](https://github.com/groundsgg/plugin-agones/commit/71bba7acfe73fb3059c194dc5d8e84cfd67ff602))
+
 ## [0.5.1](https://github.com/groundsgg/plugin-agones/compare/v0.5.0...v0.5.1) (2026-05-19)
 
 
