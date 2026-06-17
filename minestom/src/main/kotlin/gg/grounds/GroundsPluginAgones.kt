@@ -117,6 +117,5 @@ class GroundsPluginAgones : GroundsModule {
 
     companion object {
         const val MODULE_ID = "grounds.agones"
-        const val VERSION = "local"
     }
 }

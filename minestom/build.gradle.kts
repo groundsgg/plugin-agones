@@ -1,4 +1,14 @@
-plugins { id("gg.grounds.minestom-conventions") }
+plugins {
+    id("gg.grounds.minestom-conventions")
+    id("com.github.gmazzo.buildconfig")
+}
+
+buildConfig {
+    className("BuildInfo")
+    packageName("gg.grounds")
+    useKotlinOutput()
+    buildConfigField("String", "VERSION", "\"${project.version}\"")
+}
 
 dependencies {
     api("gg.grounds:grounds-minestom-runtime-runtime-api:0.1.0")
