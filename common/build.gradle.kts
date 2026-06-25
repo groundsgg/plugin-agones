@@ -1,11 +1,13 @@
 plugins { id("gg.grounds.kotlin-conventions") }
 
 dependencies {
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
-    api("com.google.code.gson:gson:2.14.0")
-    implementation("io.ktor:ktor-client-core:3.5.0")
-    implementation("io.ktor:ktor-client-cio:3.5.0")
+    api(platform("gg.grounds:grounds-dependencies:0.1.0"))
 
-    testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core")
+    api("com.google.code.gson:gson")
+    implementation("io.ktor:ktor-client-core")
+    implementation("io.ktor:ktor-client-cio")
+
+    testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
