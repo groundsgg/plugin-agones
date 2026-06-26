@@ -1,4 +1,4 @@
-plugins { id("gg.grounds.base-conventions") version "0.6.0" }
+plugins { id("gg.grounds.base-conventions") version "0.8.0" }
 
 allprojects {
     repositories {
