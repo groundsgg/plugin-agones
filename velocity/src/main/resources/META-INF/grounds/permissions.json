@@ -1,0 +1,11 @@
+{
+  "source": "plugin-agones",
+  "permissions": [
+    {
+      "key": "grounds.command.agones",
+      "label": "Use Agones command",
+      "description": "Allows using the Velocity /agones command to inspect registered Agones servers.",
+      "supportedScopes": ["GLOBAL", "SERVER_TYPE", "SERVER"]
+    }
+  ]
+}

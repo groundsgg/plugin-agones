@@ -6,6 +6,7 @@ dependencies {
     implementation(project(":common"))
     implementation("io.kubernetes:client-java")
 
+    testImplementation("com.velocitypowered:velocity-api")
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
