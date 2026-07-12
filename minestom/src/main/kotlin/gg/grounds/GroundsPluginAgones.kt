@@ -3,6 +3,7 @@ package gg.grounds
 import gg.grounds.agones.AgonesHelper
 import gg.grounds.agones.AgonesLogger
 import gg.grounds.agones.AgonesRestClient
+import gg.grounds.agones.GameServerOwnership
 import gg.grounds.listener.PlayerListener
 import gg.grounds.runtime.GroundsModule
 import gg.grounds.runtime.GroundsServerContext
@@ -20,6 +21,7 @@ import org.slf4j.LoggerFactory
 
 class GroundsPluginAgones : GroundsModule {
     private val logger: Logger = LoggerFactory.getLogger(GroundsPluginAgones::class.java)
+    private val ownership: GameServerOwnership = GameServerOwnership.fromEnvironment()
     private var coroutineScope: CoroutineScope? = null
     private var agonesHelper: AgonesHelper? = null
     private var fallbackTask: Task? = null
@@ -47,10 +49,23 @@ class GroundsPluginAgones : GroundsModule {
         fallbackTask?.cancel()
         fallbackTask = null
 
+        if (ownership.isMatchmakerManaged) {
+            // The matchmaker owns this server's Agones state. Touching it here
+            // would hand an already-allocated server back to the fleet while
+            // its players are still on their way in. See GameServerOwnership.
+            logger.info(
+                "Started Agones plugin successfully (platform=minestom, " +
+                    "ownership=matchmaker-managed; readiness loop disabled)"
+            )
+            return
+        }
+
         setGameServerState(agonesHelper)
         scheduleFallback(agonesHelper)
 
-        logger.info("Started Agones plugin successfully (platform=minestom)")
+        logger.info(
+            "Started Agones plugin successfully (platform=minestom, ownership=self-managed)"
+        )
     }
 
     override fun stop() {
@@ -73,7 +88,13 @@ class GroundsPluginAgones : GroundsModule {
         val agonesHelper = createAgonesHelper(coroutineScope)
         this.agonesHelper = agonesHelper
 
-        playerEventNode = registerListeners(agonesHelper)
+        // Under a matchmaker, the player-count listeners are not just
+        // redundant, they are harmful: the "last player left" path calls
+        // ready(), which would return a server the matchmaker still owns to
+        // the fleet. Ending the match is the gamemode's job (SDK.Shutdown),
+        // not ours.
+        playerEventNode =
+            if (ownership.isMatchmakerManaged) null else registerListeners(agonesHelper)
     }
 
     private fun setGameServerState(agonesHelper: AgonesHelper) {

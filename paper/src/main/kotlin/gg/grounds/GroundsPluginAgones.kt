@@ -3,6 +3,7 @@ package gg.grounds
 import gg.grounds.agones.AgonesHelper
 import gg.grounds.agones.AgonesLogger
 import gg.grounds.agones.AgonesRestClient
+import gg.grounds.agones.GameServerOwnership
 import gg.grounds.listener.PlayerListener
 import java.util.logging.Level
 import kotlinx.coroutines.CoroutineScope
@@ -39,12 +40,29 @@ class GroundsPluginAgones : JavaPlugin() {
         }
 
         val agonesHelper = createAgonesHelper()
+
+        val ownership = GameServerOwnership.fromEnvironment()
+        if (ownership.isMatchmakerManaged) {
+            // A matchmaker owns this server's Agones state. We must not touch
+            // it: the readiness loop would call ready() on an allocated server
+            // that is merely still empty (its players are seconds away), and
+            // the player listeners would do the same on the last disconnect.
+            // Either one hands the server back to the fleet and lets a second
+            // match land on it. Ending the match is the gamemode's job
+            // (SDK.Shutdown). See GameServerOwnership.
+            logger.info(
+                "Started Agones plugin successfully (platform=paper, " +
+                    "ownership=matchmaker-managed; readiness loop and player listeners disabled)"
+            )
+            return
+        }
+
         setGameServerState(agonesHelper)
 
         registerListeners(agonesHelper)
         scheduleFallback(agonesHelper)
 
-        logger.info("Started Agones plugin successfully (platform=paper)")
+        logger.info("Started Agones plugin successfully (platform=paper, ownership=self-managed)")
     }
 
     override fun onDisable() {
