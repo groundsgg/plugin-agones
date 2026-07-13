@@ -14,9 +14,14 @@ package gg.grounds.agones
  * second match. Two matches, one server, and the reaper cannot see the orphan because it is Ready
  * rather than Allocated.
  *
- * So when a matchmaker owns the lifecycle, this plugin must keep its hands off the state: no
- * readiness loop, no `ready()` on empty. The server leaves the pool for good and shuts down when
- * its match is over; the fleet replaces it with a fresh one.
+ * So when a matchmaker owns the lifecycle, this plugin readies the server **once** and then keeps
+ * its hands off the state: no readiness loop, no `ready()` on empty.
+ *
+ * That single `ready()` is not a loophole, it is the point. Agones only moves a GameServer out of
+ * `Scheduled` when it calls `ready()`, and a server that never does is never in the pool — the
+ * matchmaker's allocation matches nothing, and no match can ever be placed on it. The fleet sits
+ * there looking perfectly healthy and is, to an allocator, invisible. What must never happen is
+ * re-readying a server that is *already allocated*, while its players are still on their way in.
  *
  * The switch is an environment variable rather than a lookup of our own GameServer labels, because
  * the label is patched onto us *at allocation time* — a server that polled for it would race the
