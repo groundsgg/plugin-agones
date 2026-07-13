@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/groundsgg/plugin-agones/compare/v0.6.0...v0.7.0) (2026-07-13)
+
+
+### Features
+
+* gate agones command with permission ([#59](https://github.com/groundsgg/plugin-agones/issues/59)) ([9a3f93d](https://github.com/groundsgg/plugin-agones/commit/9a3f93d865bf21d39c9e842bb3d6ddb09b6ebbf3))
+* use grounds dependencies bom ([#56](https://github.com/groundsgg/plugin-agones/issues/56)) ([7ad97f8](https://github.com/groundsgg/plugin-agones/commit/7ad97f8d312366f65555fee55a81ae85056b26a1))
+
+
+### Bug Fixes
+
+* ready once, then hands off — a server that never readies is invisible ([#61](https://github.com/groundsgg/plugin-agones/issues/61)) ([e8bc87f](https://github.com/groundsgg/plugin-agones/commit/e8bc87f646a8e99c0429d371d9299bf42b61472a))
+* stop handing matchmaker-owned GameServers back to the fleet ([#60](https://github.com/groundsgg/plugin-agones/issues/60)) ([a4fcd1c](https://github.com/groundsgg/plugin-agones/commit/a4fcd1c8d89f40fda38676b368f6a8d4aa77629f))
+
 ## [0.6.0](https://github.com/groundsgg/plugin-agones/compare/v0.5.1...v0.6.0) (2026-06-17)
 
 
