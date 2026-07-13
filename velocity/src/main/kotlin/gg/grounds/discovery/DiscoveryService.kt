@@ -6,6 +6,7 @@ import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.api.proxy.server.ServerInfo
 import com.velocitypowered.api.scheduler.ScheduledTask
 import io.kubernetes.client.openapi.Configuration
+import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.apis.CustomObjectsApi
 import io.kubernetes.client.util.Config
 import java.net.InetSocketAddress
@@ -21,12 +22,15 @@ class DiscoveryService(
 ) {
     private val gson = Gson()
     private lateinit var customObjectsApi: CustomObjectsApi
+    private lateinit var coreApi: CoreV1Api
     private lateinit var pollTask: ScheduledTask
     private val lobbyServers: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val serverRoles: MutableMap<String, String> = ConcurrentHashMap()
 
     fun start() {
         customObjectsApi = createCustomObjectsApi() ?: return
+        // Same client, already configured as the default above.
+        coreApi = CoreV1Api()
 
         unregisterPreconfiguredServers()
         registerListeners()
@@ -92,6 +96,15 @@ class DiscoveryService(
         unregisterServersThatAreNoLongerRunning(runningGameServers, currentServers)
     }
 
+    /** The GameServer's pod carries the same name, so this is a direct lookup. */
+    private fun podIp(serverName: String): String? =
+        try {
+            coreApi.readNamespacedPod(serverName, config.namespace).execute().status?.podIP
+        } catch (error: Throwable) {
+            logger.warn("Could not read the pod for GameServer {}: {}", serverName, error.message)
+            null
+        }
+
     private fun fetchRunningGameServers(): List<GameServer> {
         if (!this::customObjectsApi.isInitialized) return emptyList()
         try {
@@ -152,8 +165,20 @@ class DiscoveryService(
 
             if (serverName in currentServers) continue
 
+            // Agones does not always publish the pod's address in the GameServer's
+            // status. The bundle's lobby fleets carry Hostname, InternalIP AND
+            // PodIP; the fleets forge renders for a pushed gamemode carry only the
+            // first two. A proxy that insists on PodIP therefore throws away every
+            // pushed gamemode — the server runs, is Ready, and no player can ever
+            // reach it, which looks exactly like a broken game.
+            //
+            // The pod is the source of that address anyway, and Agones names it
+            // after the GameServer, so fall back to reading it directly. Never the
+            // node's InternalIP: that would route players to a machine instead of
+            // to their server.
             val address =
                 gameServer.status?.addresses?.firstOrNull { it.type == config.addressType }?.address
+                    ?: podIp(serverName)
             if (address == null) {
                 logger.error(
                     "Failed to register Agones GameServer (serverName={}, reason=missing_address, addressType={})",
