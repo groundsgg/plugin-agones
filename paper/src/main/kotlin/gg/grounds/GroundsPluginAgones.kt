@@ -43,16 +43,25 @@ class GroundsPluginAgones : JavaPlugin() {
 
         val ownership = GameServerOwnership.fromEnvironment()
         if (ownership.isMatchmakerManaged) {
-            // A matchmaker owns this server's Agones state. We must not touch
-            // it: the readiness loop would call ready() on an allocated server
-            // that is merely still empty (its players are seconds away), and
-            // the player listeners would do the same on the last disconnect.
-            // Either one hands the server back to the fleet and lets a second
-            // match land on it. Ending the match is the gamemode's job
-            // (SDK.Shutdown). See GameServerOwnership.
+            // Ready ONCE, and then never again.
+            //
+            // Agones only moves a GameServer out of Scheduled when it calls
+            // ready(). A server that never does is never in the pool, so the
+            // matchmaker's allocation matches nothing and no match can ever be
+            // placed on it — the fleet sits there looking healthy and is, to an
+            // allocator, invisible. Keeping our hands off the state entirely was
+            // too broad: what must not happen is re-readying a server that is
+            // ALREADY allocated (its players are seconds away, and handing it
+            // back would let a second match land on it).
+            //
+            // So: enter the pool, then stop. No readiness loop, no player
+            // listeners, no ready() on empty. Ending the match is the gamemode's
+            // job (SDK.Shutdown). See GameServerOwnership.
+            agonesHelper.ready()
             logger.info(
                 "Started Agones plugin successfully (platform=paper, " +
-                    "ownership=matchmaker-managed; readiness loop and player listeners disabled)"
+                    "ownership=matchmaker-managed; readied once, then hands off — " +
+                    "readiness loop and player listeners disabled)"
             )
             return
         }

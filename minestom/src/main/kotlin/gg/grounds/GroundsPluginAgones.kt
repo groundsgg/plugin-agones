@@ -50,12 +50,23 @@ class GroundsPluginAgones : GroundsModule {
         fallbackTask = null
 
         if (ownership.isMatchmakerManaged) {
-            // The matchmaker owns this server's Agones state. Touching it here
-            // would hand an already-allocated server back to the fleet while
-            // its players are still on their way in. See GameServerOwnership.
+            // Ready ONCE, and then never again.
+            //
+            // Agones only moves a GameServer out of Scheduled when it calls
+            // ready(). A server that never does is never in the pool, so the
+            // matchmaker's allocation matches nothing and no match can ever be
+            // placed on it — the fleet sits there looking healthy and is, to an
+            // allocator, invisible. Keeping our hands off the state entirely was
+            // too broad: what must not happen is re-readying a server that is
+            // ALREADY allocated, while its players are still on their way in.
+            //
+            // So: enter the pool, then stop. No readiness loop, no ready() on
+            // empty. See GameServerOwnership.
+            agonesHelper.ready()
             logger.info(
                 "Started Agones plugin successfully (platform=minestom, " +
-                    "ownership=matchmaker-managed; readiness loop disabled)"
+                    "ownership=matchmaker-managed; readied once, then hands off — " +
+                    "readiness loop disabled)"
             )
             return
         }
