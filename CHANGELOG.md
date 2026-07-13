@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/groundsgg/plugin-agones/compare/v0.7.0...v0.7.1) (2026-07-13)
+
+
+### Bug Fixes
+
+* **discovery:** fall back to the pod when Agones publishes no PodIP ([#62](https://github.com/groundsgg/plugin-agones/issues/62)) ([5923dc5](https://github.com/groundsgg/plugin-agones/commit/5923dc593b40fcb2a1cda77c593aa3dab1010e86))
+
 ## [0.7.0](https://github.com/groundsgg/plugin-agones/compare/v0.6.0...v0.7.0) (2026-07-13)
 
 
