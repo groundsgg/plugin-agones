@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/groundsgg/plugin-agones/compare/v0.7.1...v0.7.2) (2026-07-24)
+
+
+### Bug Fixes
+
+* **agones:** report network player counts, not this proxy's ([#64](https://github.com/groundsgg/plugin-agones/issues/64)) ([b98e89a](https://github.com/groundsgg/plugin-agones/commit/b98e89a9983d694ac7983a333e9f9f3d4b612d44))
+
 ## [0.7.1](https://github.com/groundsgg/plugin-agones/compare/v0.7.0...v0.7.1) (2026-07-13)
 
 
