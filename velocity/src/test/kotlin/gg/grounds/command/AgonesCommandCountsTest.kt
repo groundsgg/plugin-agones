@@ -97,9 +97,7 @@ class AgonesCommandCountsTest {
                     "getPlayersConnected" to (1..localPlayersOnLobby).map { Any() }.toSet(),
                 )
             )
-        return proxy(
-            mapOf("getAllServers" to listOf(server), "getPlayerCount" to localPlayerCount)
-        )
+        return proxy(mapOf("getAllServers" to listOf(server), "getPlayerCount" to localPlayerCount))
     }
 
     private fun recordingSource(sink: MutableList<Component>): CommandSource =
