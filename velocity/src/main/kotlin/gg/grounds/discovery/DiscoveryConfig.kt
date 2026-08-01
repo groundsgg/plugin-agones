@@ -19,6 +19,8 @@ import java.time.Duration
  * - `GROUNDS_AGONES_ADDRESS_TYPE` — Which `status.addresses` entry to use (`PodIP`, `ExternalIP`,
  *   `InternalIP`, `Hostname`).
  * - `GROUNDS_AGONES_PORT` — TCP port to dial on the discovered GameServer.
+ * - `GROUNDS_AGONES_LOBBY_SOFT_CAP` — Players a lobby is packed up to before joins go to the next
+ *   one. Soft: a snapshot-raced join over the cap is fine.
  */
 data class DiscoveryConfig(
     val namespace: String,
@@ -29,6 +31,7 @@ data class DiscoveryConfig(
     val pollInterval: Duration,
     val addressType: String,
     val port: Int,
+    val lobbySoftCap: Int,
 ) {
     companion object {
         const val DEFAULT_NAMESPACE = "games"
@@ -39,6 +42,7 @@ data class DiscoveryConfig(
         val DEFAULT_POLL_INTERVAL: Duration = Duration.ofSeconds(2)
         const val DEFAULT_ADDRESS_TYPE = "PodIP"
         const val DEFAULT_PORT = 25565
+        const val DEFAULT_LOBBY_SOFT_CAP = 400
 
         fun fromEnv(env: Map<String, String> = System.getenv()): DiscoveryConfig =
             DiscoveryConfig(
@@ -59,6 +63,9 @@ data class DiscoveryConfig(
                         ?: DEFAULT_POLL_INTERVAL,
                 addressType = env["GROUNDS_AGONES_ADDRESS_TYPE"] ?: DEFAULT_ADDRESS_TYPE,
                 port = env["GROUNDS_AGONES_PORT"]?.toIntOrNull() ?: DEFAULT_PORT,
+                lobbySoftCap =
+                    env["GROUNDS_AGONES_LOBBY_SOFT_CAP"]?.toIntOrNull()?.takeIf { it > 0 }
+                        ?: DEFAULT_LOBBY_SOFT_CAP,
             )
 
         private val DURATION_PATTERN = Regex("""^(\d+)\s*(s|m|h)$""")
