@@ -9,6 +9,10 @@ import com.velocitypowered.api.proxy.ProxyServer
 import gg.grounds.command.AgonesCommand
 import gg.grounds.discovery.DiscoveryConfig
 import gg.grounds.discovery.DiscoveryService
+import gg.grounds.drain.DrainConfig
+import gg.grounds.drain.DrainHttpServer
+import gg.grounds.drain.DrainListener
+import gg.grounds.drain.DrainManager
 import gg.grounds.gameserver.GameServerStateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +34,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var stateManager: GameServerStateManager
     private lateinit var discoveryService: DiscoveryService
+    private lateinit var drainHttpServer: DrainHttpServer
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
@@ -56,11 +61,28 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
             AgonesCommand(proxyServer, { serverName -> discoveryService.getServerRole(serverName) }),
         )
 
+        val drainConfig = DrainConfig.fromEnv()
+        val drainManager =
+            DrainManager(
+                this,
+                proxyServer,
+                logger,
+                drainConfig,
+                { serverName -> discoveryService.getServerRole(serverName) },
+                discoveryConfig.lobbyValue,
+            )
+        proxyServer.eventManager.register(this, DrainListener(drainManager))
+        drainHttpServer =
+            DrainHttpServer(drainManager, drainConfig.httpPort, logger).also { it.start() }
+
         logger.info("Initialized Agones plugin (platform=velocity)")
     }
 
     @Subscribe
     fun onProxyShutdown(event: ProxyShutdownEvent) {
+        if (this::drainHttpServer.isInitialized) {
+            drainHttpServer.stop()
+        }
         if (this::discoveryService.isInitialized) {
             discoveryService.stop()
         }
