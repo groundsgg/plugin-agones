@@ -8,8 +8,10 @@ package gg.grounds.drain
  * Environment keys:
  * - `GROUNDS_DRAIN_TRANSFER_HOST` — `host[:port]` the Minecraft transfer packet sends players to.
  *   This is the *public* name the client reconnects through (mc-router resolves it to whichever
- *   proxy is alive), not a backend address. Unset means players are never transferred, only waited
- *   for.
+ *   proxy is alive), not a backend address. Optional: when unset, the target is this region's own
+ *   entry in `REGIONS` (the `code=host[:port]` catalogue `/region` already transfers players with,
+ *   selected by `REGION`) — the same values file then works in every region. With neither set,
+ *   players are never transferred, only waited for.
  * - `GROUNDS_DRAIN_HTTP_PORT` — loopback port the preStop hook calls. `0` disables the endpoint.
  */
 data class DrainConfig(val transferHost: String?, val transferPort: Int, val httpPort: Int) {
@@ -19,7 +21,9 @@ data class DrainConfig(val transferHost: String?, val transferPort: Int, val htt
         const val DEFAULT_HTTP_PORT = 8085
 
         fun fromEnv(env: Map<String, String> = System.getenv()): DrainConfig {
-            val rawTarget = env["GROUNDS_DRAIN_TRANSFER_HOST"]?.trim()?.takeIf { it.isNotEmpty() }
+            val rawTarget =
+                env["GROUNDS_DRAIN_TRANSFER_HOST"]?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: ownRegionTarget(env["REGIONS"], env["REGION"])
             // rsplit, because a host can contain no colon but a port always follows the last one.
             val host =
                 rawTarget?.substringBeforeLast(':', rawTarget)?.trim()?.takeIf { it.isNotEmpty() }
@@ -30,7 +34,7 @@ data class DrainConfig(val transferHost: String?, val transferPort: Int, val htt
                     else ->
                         portText.toIntOrNull()?.takeIf { it in 1..65535 }
                             ?: throw IllegalArgumentException(
-                                "GROUNDS_DRAIN_TRANSFER_HOST '$rawTarget' has a bad port"
+                                "drain transfer target '$rawTarget' has a bad port"
                             )
                 }
             val httpPort =
@@ -45,6 +49,25 @@ data class DrainConfig(val transferHost: String?, val transferPort: Int, val htt
                     } ?: DEFAULT_HTTP_PORT
 
             return DrainConfig(host, port, httpPort)
+        }
+
+        /**
+         * This region's `host[:port]` out of the `REGIONS` catalogue. Choosing the *own* region on
+         * purpose: a drained player should land where they already are, latency-wise — the
+         * replacement proxy in the same region — not wherever a geo name happens to steer them.
+         * Null (no catalogue, no region, region not listed) leaves the drain wait-only.
+         */
+        internal fun ownRegionTarget(regions: String?, region: String?): String? {
+            if (regions.isNullOrBlank() || region.isNullOrBlank()) return null
+            val code = region.trim()
+            return regions
+                .split(',')
+                .map { it.trim() }
+                .firstNotNullOfOrNull { entry ->
+                    val entryCode = entry.substringBefore('=', "").trim()
+                    val target = entry.substringAfter('=', "").trim()
+                    target.takeIf { entryCode.equals(code, ignoreCase = true) && it.isNotEmpty() }
+                }
         }
     }
 }

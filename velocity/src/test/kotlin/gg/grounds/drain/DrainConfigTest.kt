@@ -50,6 +50,47 @@ class DrainConfigTest {
     }
 
     @Test
+    fun `falls back to the own region's REGIONS entry`() {
+        val cfg =
+            DrainConfig.fromEnv(
+                env =
+                    mapOf(
+                        "REGIONS" to
+                            "nl-ams1=nl-ams1.stage.grnds.io,us-nyc1=nyc1.stage.grnds.io:25566",
+                        "REGION" to "us-nyc1",
+                    )
+            )
+
+        assertEquals("nyc1.stage.grnds.io", cfg.transferHost)
+        assertEquals(25566, cfg.transferPort)
+    }
+
+    @Test
+    fun `explicit transfer host wins over the REGIONS catalogue`() {
+        val cfg =
+            DrainConfig.fromEnv(
+                env =
+                    mapOf(
+                        "GROUNDS_DRAIN_TRANSFER_HOST" to "override.grnds.io",
+                        "REGIONS" to "nl-ams1=nl-ams1.stage.grnds.io",
+                        "REGION" to "nl-ams1",
+                    )
+            )
+
+        assertEquals("override.grnds.io", cfg.transferHost)
+    }
+
+    @Test
+    fun `a region missing from the catalogue means wait-only`() {
+        val cfg =
+            DrainConfig.fromEnv(
+                env = mapOf("REGIONS" to "nl-ams1=nl-ams1.stage.grnds.io", "REGION" to "pl-waw1")
+            )
+
+        assertNull(cfg.transferHost)
+    }
+
+    @Test
     fun `http port zero disables the endpoint`() {
         val cfg = DrainConfig.fromEnv(env = mapOf("GROUNDS_DRAIN_HTTP_PORT" to "0"))
         assertEquals(0, cfg.httpPort)
