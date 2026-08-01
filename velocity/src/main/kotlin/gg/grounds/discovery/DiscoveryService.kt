@@ -5,6 +5,8 @@ import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.api.proxy.server.ServerInfo
 import com.velocitypowered.api.scheduler.ScheduledTask
+import gg.grounds.proxy.api.ProxyService
+import gg.grounds.proxy.api.ProxyServiceRegistry
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.apis.CustomObjectsApi
@@ -26,6 +28,7 @@ class DiscoveryService(
     private lateinit var pollTask: ScheduledTask
     private val lobbyServers: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val serverRoles: MutableMap<String, String> = ConcurrentHashMap()
+    @Volatile private var countsSnapshot: Pair<Long, Map<String, Int>?>? = null
 
     fun start() {
         customObjectsApi = createCustomObjectsApi() ?: return
@@ -75,8 +78,29 @@ class DiscoveryService(
     private fun registerListeners() {
         proxyServer.eventManager.register(
             plugin,
-            DiscoveryPlayerListener(proxyServer, lobbyServers),
+            DiscoveryPlayerListener(
+                proxyServer,
+                lobbyServers,
+                config.lobbySoftCap,
+                this::networkCountsCached,
+            ),
         )
+    }
+
+    /**
+     * Network-wide players per server, briefly cached: the lookup behind it is a gRPC call and the
+     * caller runs on every join. Null (plugin-proxy absent, presence service unreachable) is cached
+     * too — a join storm must not hammer a service that is already answering badly.
+     */
+    private fun networkCountsCached(): Map<String, Int>? {
+        val now = System.nanoTime()
+        countsSnapshot?.let { (takenAt, value) ->
+            if (now - takenAt < COUNTS_TTL_NANOS) return value
+        }
+        val fresh =
+            ProxyServiceRegistry.get(ProxyService::class.java)?.getNetworkPlayerCounts()?.byServer
+        countsSnapshot = now to fresh
+        return fresh
     }
 
     private fun schedulePolling() {
@@ -232,5 +256,6 @@ class DiscoveryService(
         private const val GROUP = "agones.dev"
         private const val VERSION = "v1"
         private const val PLURAL = "gameservers"
+        private val COUNTS_TTL_NANOS = TimeUnit.SECONDS.toNanos(2)
     }
 }

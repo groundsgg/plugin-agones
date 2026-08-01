@@ -11,6 +11,13 @@ import net.kyori.adventure.text.Component
 class DiscoveryPlayerListener(
     private val proxyServer: ProxyServer,
     private val lobbyServers: Set<String>,
+    private val lobbySoftCap: Int,
+    /**
+     * Network-wide players per backend server, or null when the network cannot be asked. Null falls
+     * back to this proxy's own view — enough to keep packing roughly right on a single proxy, and
+     * strictly better than picking blind.
+     */
+    private val networkCounts: () -> Map<String, Int>?,
 ) {
 
     @Subscribe
@@ -35,6 +42,20 @@ class DiscoveryPlayerListener(
         }
     }
 
-    private fun findLobbyServer(): RegisteredServer? =
-        proxyServer.allServers.firstOrNull { it.serverInfo.name in lobbyServers }
+    private fun findLobbyServer(): RegisteredServer? {
+        val lobbies = proxyServer.allServers.filter { it.serverInfo.name in lobbyServers }
+        if (lobbies.isEmpty()) return null
+
+        val counts = networkCounts()
+        val candidates =
+            lobbies.map { server ->
+                val name = server.serverInfo.name
+                LobbyPacking.Candidate(
+                    name,
+                    if (counts != null) counts[name] ?: 0 else server.playersConnected.size,
+                )
+            }
+        val chosen = LobbyPacking.pick(candidates, lobbySoftCap) ?: return null
+        return lobbies.firstOrNull { it.serverInfo.name == chosen }
+    }
 }
