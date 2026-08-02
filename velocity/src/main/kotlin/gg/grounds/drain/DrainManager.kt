@@ -16,8 +16,10 @@ import org.slf4j.Logger
  * - players sitting in a lobby are sent a Minecraft transfer packet right away,
  * - players inside a round stay untouched — Agones keeps their GameServer alive, and the moment the
  *   round sends them back towards a lobby the transfer happens *instead of* that connect,
- * - at the deadline everyone still here is transferred regardless, because a transfer that ends a
- *   round early still beats the kick that is otherwise seconds away.
+ * - at the deadline, whoever is *not* inside a round is transferred; players inside a round are
+ *   never transferred — the round either ends within the grace period (and the lobby connect
+ *   becomes the transfer), or the pod's termination ends the session. A transfer would end the
+ *   round just as surely, only earlier.
  *
  * "Inside a round" is decided by the server's `grounds/server-type` role: anything that is not the
  * lobby role defers the transfer. A server that discovery has no role for cannot be a protected
@@ -75,8 +77,21 @@ class DrainManager(
     private fun onDeadline() {
         val remaining = proxy.allPlayers
         if (remaining.isEmpty()) return
-        logger.warn("Drain deadline reached with {} players left; transferring all", remaining.size)
-        remaining.forEach { transferOut(it, force = true) }
+        val (inRound, drainable) = remaining.partition { shouldDefer(roleOf(it), lobbyValue) }
+        if (drainable.isNotEmpty()) {
+            logger.warn(
+                "Drain deadline reached; transferring {} players not inside a round",
+                drainable.size,
+            )
+            drainable.forEach { transferOut(it, force = true) }
+        }
+        if (inRound.isNotEmpty()) {
+            logger.warn(
+                "Drain deadline reached with {} players still inside a round; leaving them " +
+                    "until the round ends or the pod is terminated",
+                inRound.size,
+            )
+        }
     }
 
     /**
