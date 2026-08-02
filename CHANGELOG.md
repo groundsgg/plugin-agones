@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/groundsgg/plugin-agones/compare/v0.8.0...v0.8.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* **velocity:** never transfer players who are inside a round ([#69](https://github.com/groundsgg/plugin-agones/issues/69)) ([d9a0f17](https://github.com/groundsgg/plugin-agones/commit/d9a0f173b7f330b40ba0c8752d78b38fcf2986a1))
+
 ## [0.8.0](https://github.com/groundsgg/plugin-agones/compare/v0.7.2...v0.8.0) (2026-08-01)
 
 
