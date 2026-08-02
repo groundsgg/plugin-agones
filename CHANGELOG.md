@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/groundsgg/plugin-agones/compare/v0.7.2...v0.8.0) (2026-08-01)
+
+
+### Features
+
+* **velocity:** drain players via transfer before shutdown ([#66](https://github.com/groundsgg/plugin-agones/issues/66)) ([286154c](https://github.com/groundsgg/plugin-agones/commit/286154c67b1b9eed4cff83da54dd006d12ad34fe))
+* **velocity:** pack lobbies fullest-first up to a soft cap ([#67](https://github.com/groundsgg/plugin-agones/issues/67)) ([3687e23](https://github.com/groundsgg/plugin-agones/commit/3687e2303d874520ad3eda836422fce3d757bc26))
+
 ## [0.7.2](https://github.com/groundsgg/plugin-agones/compare/v0.7.1...v0.7.2) (2026-07-24)
 
 
