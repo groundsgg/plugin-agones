@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/groundsgg/plugin-agones/compare/v0.8.1...v1.0.0) (2026-08-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **discovery:** GROUNDS_AGONES_LOBBY_SOFT_CAP is gone. Deployments setting it keep working, the value is simply ignored; groundsgg/deploy should drop it.
+
+### Features
+
+* **discovery:** spread joins across lobbies instead of packing one ([#71](https://github.com/groundsgg/plugin-agones/issues/71)) ([79b57c8](https://github.com/groundsgg/plugin-agones/commit/79b57c8ee15295f7c542c51ac76f2d1d370edbce))
+
 ## [0.8.1](https://github.com/groundsgg/plugin-agones/compare/v0.8.0...v0.8.1) (2026-08-02)
 
 
