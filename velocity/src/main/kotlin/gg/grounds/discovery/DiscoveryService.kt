@@ -81,7 +81,6 @@ class DiscoveryService(
             DiscoveryPlayerListener(
                 proxyServer,
                 lobbyServers,
-                config.lobbySoftCap,
                 this::networkCountsCached,
             ),
         )
