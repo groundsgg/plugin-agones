@@ -11,11 +11,7 @@ class LobbySelectionTest {
     fun `joins go to the least occupied lobby`() {
         val chosen =
             LobbySelection.pick(
-                listOf(
-                    Candidate("lobby-a", 12),
-                    Candidate("lobby-b", 391),
-                    Candidate("lobby-c", 3),
-                )
+                listOf(Candidate("lobby-a", 12), Candidate("lobby-b", 391), Candidate("lobby-c", 3))
             )
         assertEquals("lobby-c", chosen)
     }
@@ -45,8 +41,7 @@ class LobbySelectionTest {
 
     @Test
     fun `ties break on the name so every proxy makes the same choice`() {
-        val chosen =
-            LobbySelection.pick(listOf(Candidate("lobby-b", 50), Candidate("lobby-a", 50)))
+        val chosen = LobbySelection.pick(listOf(Candidate("lobby-b", 50), Candidate("lobby-a", 50)))
         assertEquals("lobby-a", chosen)
     }
 

@@ -78,11 +78,7 @@ class DiscoveryService(
     private fun registerListeners() {
         proxyServer.eventManager.register(
             plugin,
-            DiscoveryPlayerListener(
-                proxyServer,
-                lobbyServers,
-                this::networkCountsCached,
-            ),
+            DiscoveryPlayerListener(proxyServer, lobbyServers, this::networkCountsCached),
         )
     }
 
