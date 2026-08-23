@@ -1,9 +1,11 @@
 package gg.grounds.discovery
 
+import com.velocitypowered.api.network.ProtocolVersion
 import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.api.proxy.server.ServerInfo
 import java.lang.reflect.Proxy
 import java.net.InetSocketAddress
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
@@ -38,6 +40,17 @@ class DrainStaticServerSelectionTest {
         val selected = selectDrainStaticServer("game-7", listOf(game)) { "game" }
 
         assertNull(selected)
+    }
+
+    @Test
+    fun `allows a cookie-capable login to reach static selection without a lobby`() {
+        assertFalse(
+            shouldDenyInitialLogin(
+                hasLobby = false,
+                hasStatic = true,
+                protocolVersion = ProtocolVersion.MINECRAFT_1_20_5,
+            )
+        )
     }
 
     private fun registeredServer(name: String): RegisteredServer =

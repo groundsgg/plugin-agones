@@ -3,6 +3,7 @@ package gg.grounds.drain
 import com.velocitypowered.api.event.ResultedEvent
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.LoginEvent
+import com.velocitypowered.api.event.player.CookieReceiveEvent
 import com.velocitypowered.api.event.player.ServerPreConnectEvent
 
 class DrainListener(private val drainManager: DrainManager) {
@@ -28,6 +29,14 @@ class DrainListener(private val drainManager: DrainManager) {
         val target = event.result.server.orElse(null) ?: return
         if (drainManager.interceptConnect(event.player, target.serverInfo.name)) {
             event.result = ServerPreConnectEvent.ServerResult.denied()
+        }
+    }
+
+    @Subscribe
+    fun onCookieReceive(event: CookieReceiveEvent) {
+        if (event.originalKey != DrainTransferCookie.KEY) return
+        if (drainManager.handleCookie(event.player, event.originalData)) {
+            event.result = CookieReceiveEvent.ForwardResult.handled()
         }
     }
 }

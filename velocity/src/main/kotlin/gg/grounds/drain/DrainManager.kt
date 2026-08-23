@@ -33,6 +33,9 @@ class DrainManager(
     private val serverRole: (String) -> String?,
     private val lobbyValue: String,
     private val drainTransferCookie: DrainTransferCookie = DrainTransferCookie(),
+    private val transferStager: DrainTransferStager = DrainTransferStager { action ->
+        proxy.scheduler.buildTask(plugin, Runnable(action)).delay(1, TimeUnit.SECONDS).schedule()
+    },
 ) {
     @Volatile
     var isDraining: Boolean = false
@@ -104,16 +107,27 @@ class DrainManager(
     private fun transferOut(player: Player, force: Boolean): Boolean {
         val host = config.transferHost
         if (host != null && player.protocolVersion >= ProtocolVersion.MINECRAFT_1_20_5) {
-            currentStaticServerName(player)?.let { serverName ->
-                player.storeCookie(DrainTransferCookie.KEY, drainTransferCookie.encode(serverName))
+            val transfer = {
+                logger.info(
+                    "Draining player via transfer (player={}, target={}:{})",
+                    player.username,
+                    host,
+                    config.transferPort,
+                )
+                player.transferToHost(InetSocketAddress.createUnresolved(host, config.transferPort))
             }
-            logger.info(
-                "Draining player via transfer (player={}, target={}:{})",
-                player.username,
-                host,
-                config.transferPort,
-            )
-            player.transferToHost(InetSocketAddress.createUnresolved(host, config.transferPort))
+            val payload = currentStaticServerName(player)?.let(drainTransferCookie::encode)
+            if (payload != null) {
+                transferStager.stage(
+                    player.uniqueId.toString(),
+                    payload,
+                    { player.storeCookie(DrainTransferCookie.KEY, payload) },
+                    { player.requestCookie(DrainTransferCookie.KEY) },
+                    transfer,
+                )
+            } else {
+                transfer()
+            }
             return true
         }
         if (force) {
@@ -131,6 +145,15 @@ class DrainManager(
             .map { it.serverInfo.name }
             .orElse(null)
             ?.takeIf { serverName -> shouldPreserveStaticBackend(serverRole(serverName)) }
+
+    fun handleCookie(player: Player, payload: ByteArray?): Boolean {
+        val playerId = player.uniqueId.toString()
+        if (!transferStager.isPending(playerId)) return false
+        transferStager.onCookie(playerId, payload)
+        return true
+    }
+
+    fun isCookiePending(playerId: String): Boolean = transferStager.isPending(playerId)
 
     companion object {
         val RESTART_MESSAGE: Component =

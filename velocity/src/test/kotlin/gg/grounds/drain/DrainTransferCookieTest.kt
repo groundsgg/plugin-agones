@@ -14,7 +14,7 @@ class DrainTransferCookieTest {
 
     @Test
     fun `round trips a static server name before its expiry`() {
-        val cookie = DrainTransferCookie(clock)
+        val cookie = DrainTransferCookie("secret", clock)
 
         val payload = cookie.encode("buildserver")
 
@@ -23,7 +23,7 @@ class DrainTransferCookieTest {
 
     @Test
     fun `rejects a cookie at its expiry`() {
-        val cookie = DrainTransferCookie(clock)
+        val cookie = DrainTransferCookie("secret", clock)
         val payload = cookie.encode("buildserver", now.toEpochMilli())
 
         assertNull(cookie.decode(payload))
@@ -31,8 +31,32 @@ class DrainTransferCookieTest {
 
     @Test
     fun `rejects malformed client payloads`() {
-        val cookie = DrainTransferCookie(clock)
+        val cookie = DrainTransferCookie("secret", clock)
 
         assertNull(cookie.decode(byteArrayOf(1, 2, 3)))
+    }
+
+    @Test
+    fun `rejects a cookie signed with another secret`() {
+        val payload = DrainTransferCookie("source-secret", clock).encode("buildserver")
+
+        assertNull(DrainTransferCookie("target-secret", clock).decode(payload))
+    }
+
+    @Test
+    fun `rejects a forged cookie signature`() {
+        val cookie = DrainTransferCookie("secret", clock)
+        val payload = cookie.encode("buildserver")!!
+        payload[10] = (payload[10].toInt() xor 1).toByte()
+
+        assertNull(cookie.decode(payload))
+    }
+
+    @Test
+    fun `rejects an expiry beyond the allowed lifetime`() {
+        val cookie = DrainTransferCookie("secret", clock)
+        val payload = cookie.encode("buildserver", now.plusSeconds(600).toEpochMilli())
+
+        assertNull(cookie.decode(payload))
     }
 }

@@ -29,6 +29,12 @@ internal fun selectDrainStaticServer(
 
 private const val STATIC_SERVER_ROLE = "static"
 
+internal fun shouldDenyInitialLogin(
+    hasLobby: Boolean,
+    hasStatic: Boolean,
+    protocolVersion: ProtocolVersion,
+): Boolean = !hasLobby && !(hasStatic && protocolVersion >= ProtocolVersion.MINECRAFT_1_20_5)
+
 internal fun consumeDrainTransferCookie(clearCookie: () -> Unit) {
     try {
         clearCookie()
@@ -49,12 +55,23 @@ class DiscoveryPlayerListener(
      */
     private val networkCounts: () -> Map<String, Int>?,
     private val drainTransferCookie: DrainTransferCookie = DrainTransferCookie(),
+    private val sourceCookiePending: (String) -> Boolean = { false },
 ) {
     private val pendingCookies = ConcurrentHashMap<UUID, PendingCookieRequest>()
 
     @Subscribe
     fun onLogin(event: LoginEvent) {
-        if (findLobbyServer() != null) return
+        if (
+            !shouldDenyInitialLogin(
+                findLobbyServer() != null,
+                proxyServer.allServers.any { server ->
+                    serverRole(server.serverInfo.name) == STATIC_SERVER_ROLE
+                },
+                event.player.protocolVersion,
+            )
+        ) {
+            return
+        }
 
         event.result =
             ResultedEvent.ComponentResult.denied(
@@ -101,6 +118,7 @@ class DiscoveryPlayerListener(
     @Subscribe
     fun onCookieReceive(event: CookieReceiveEvent) {
         if (event.originalKey != DrainTransferCookie.KEY) return
+        if (sourceCookiePending(event.player.uniqueId.toString())) return
         event.result = CookieReceiveEvent.ForwardResult.handled()
         val payload = event.originalData
         consumeDrainTransferCookie {

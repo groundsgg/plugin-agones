@@ -44,6 +44,9 @@ class DiscoveryService(
     private val kubernetesClientFactory: () -> CustomObjectsApi? = {
         createCustomObjectsApi(config, logger)
     },
+    private val drainTransferCookie: gg.grounds.drain.DrainTransferCookie =
+        gg.grounds.drain.DrainTransferCookie(),
+    private val sourceCookiePending: (String) -> Boolean = { false },
 ) {
     private val gson = Gson()
     private lateinit var customObjectsApi: CustomObjectsApi
@@ -121,6 +124,8 @@ class DiscoveryService(
                 lobbyServers,
                 this::getServerRole,
                 this::networkCountsCached,
+                drainTransferCookie,
+                sourceCookiePending,
             ),
         )
     }
