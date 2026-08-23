@@ -19,8 +19,20 @@ class DrainDecisionTest {
     }
 
     @Test
-    fun `no server or unknown role is nothing to protect`() {
+    fun `only real round roles defer a drain`() {
+        assertFalse(DrainManager.shouldDefer(role = "static", lobbyValue = "lobby"))
+        assertFalse(DrainManager.shouldDefer(role = "lobby", lobbyValue = "lobby"))
         assertFalse(DrainManager.shouldDefer(role = null, lobbyValue = "lobby"))
+        assertFalse(DrainManager.shouldDefer(role = "unknown", lobbyValue = "lobby"))
+    }
+
+    @Test
+    fun `only static backends are preserved across an automatic drain transfer`() {
+        assertTrue(DrainManager.shouldPreserveStaticBackend("static"))
+        assertFalse(DrainManager.shouldPreserveStaticBackend("lobby"))
+        assertFalse(DrainManager.shouldPreserveStaticBackend("game"))
+        assertFalse(DrainManager.shouldPreserveStaticBackend("match"))
+        assertFalse(DrainManager.shouldPreserveStaticBackend(null))
     }
 
     @Test

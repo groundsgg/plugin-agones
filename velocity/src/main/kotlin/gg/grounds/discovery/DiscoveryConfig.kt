@@ -1,6 +1,9 @@
 package gg.grounds.discovery
 
 import java.time.Duration
+import java.util.Locale
+
+internal fun canonicalServerName(name: String): String = name.lowercase(Locale.ROOT)
 
 /**
  * Discovery configuration sourced from environment variables. All keys are optional; the defaults
@@ -19,7 +22,11 @@ import java.time.Duration
  * - `GROUNDS_AGONES_ADDRESS_TYPE` — Which `status.addresses` entry to use (`PodIP`, `ExternalIP`,
  *   `InternalIP`, `Hostname`).
  * - `GROUNDS_AGONES_PORT` — TCP port to dial on the discovered GameServer.
+ * - `GROUNDS_STATIC_SERVERS` — Comma-separated `name=host:port` Velocity backends that are
+ *   registered without Agones discovery.
  */
+data class StaticServer(val name: String, val host: String, val port: Int)
+
 data class DiscoveryConfig(
     val namespace: String,
     val labelSelector: String,
@@ -29,6 +36,7 @@ data class DiscoveryConfig(
     val pollInterval: Duration,
     val addressType: String,
     val port: Int,
+    val staticServers: List<StaticServer>,
 ) {
     companion object {
         const val DEFAULT_NAMESPACE = "games"
@@ -59,6 +67,7 @@ data class DiscoveryConfig(
                         ?: DEFAULT_POLL_INTERVAL,
                 addressType = env["GROUNDS_AGONES_ADDRESS_TYPE"] ?: DEFAULT_ADDRESS_TYPE,
                 port = env["GROUNDS_AGONES_PORT"]?.toIntOrNull() ?: DEFAULT_PORT,
+                staticServers = parseStaticServers(env["GROUNDS_STATIC_SERVERS"]),
             )
 
         private val DURATION_PATTERN = Regex("""^(\d+)\s*(s|m|h)$""")
@@ -75,6 +84,35 @@ data class DiscoveryConfig(
                 "m" -> Duration.ofMinutes(n)
                 "h" -> Duration.ofHours(n)
                 else -> error("unreachable")
+            }
+        }
+
+        private fun parseStaticServers(raw: String?): List<StaticServer> {
+            if (raw.isNullOrBlank()) return emptyList()
+
+            val names = mutableSetOf<String>()
+            return raw.split(",").map { entry ->
+                val trimmedEntry = entry.trim()
+                val separator = trimmedEntry.indexOf('=')
+                require(separator >= 0) { "Invalid GROUNDS_STATIC_SERVERS entry '$trimmedEntry'" }
+
+                val name = trimmedEntry.substring(0, separator).trim()
+                val address = trimmedEntry.substring(separator + 1).trim()
+                val portSeparator = address.lastIndexOf(':')
+                require(name.isNotEmpty() && portSeparator >= 0) {
+                    "Invalid GROUNDS_STATIC_SERVERS entry '$trimmedEntry'"
+                }
+
+                val host = address.substring(0, portSeparator).trim()
+                val port = address.substring(portSeparator + 1).trim().toIntOrNull()
+                require(host.isNotEmpty() && port != null && port in 1..65535) {
+                    "Invalid GROUNDS_STATIC_SERVERS entry '$trimmedEntry'"
+                }
+                require(names.add(canonicalServerName(name))) {
+                    "Invalid GROUNDS_STATIC_SERVERS entry '$trimmedEntry': duplicate name '$name'"
+                }
+
+                StaticServer(name, host, port)
             }
         }
     }

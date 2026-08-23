@@ -16,11 +16,37 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import org.slf4j.Logger
 
+internal fun staleManagedServerNames(
+    runningAgonesServerNames: Set<String>,
+    agonesManagedServerNames: Set<String>,
+): Set<String> = agonesManagedServerNames - runningAgonesServerNames
+
+private fun createCustomObjectsApi(config: DiscoveryConfig, logger: Logger): CustomObjectsApi? =
+    try {
+        val client = Config.defaultClient()
+        Configuration.setDefaultApiClient(client)
+        CustomObjectsApi(client)
+    } catch (error: Throwable) {
+        logger.warn(
+            "Failed to initialize Agones discovery client (namespace={}, labelSelector={})",
+            config.namespace,
+            config.labelSelector,
+            error,
+        )
+        null
+    }
+
 class DiscoveryService(
     private val plugin: Any,
     private val proxyServer: ProxyServer,
     private val logger: Logger,
     private val config: DiscoveryConfig = DiscoveryConfig.fromEnv(),
+    private val kubernetesClientFactory: () -> CustomObjectsApi? = {
+        createCustomObjectsApi(config, logger)
+    },
+    private val drainTransferCookie: gg.grounds.drain.DrainTransferCookie =
+        gg.grounds.drain.DrainTransferCookie(),
+    private val sourceCookiePending: (String) -> Boolean = { false },
 ) {
     private val gson = Gson()
     private lateinit var customObjectsApi: CustomObjectsApi
@@ -28,15 +54,19 @@ class DiscoveryService(
     private lateinit var pollTask: ScheduledTask
     private val lobbyServers: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val serverRoles: MutableMap<String, String> = ConcurrentHashMap()
+    private val agonesManagedServers: MutableMap<String, RegisteredServer> = ConcurrentHashMap()
+    private val staticServerNames =
+        config.staticServers.mapTo(mutableSetOf()) { canonicalServerName(it.name) }
     @Volatile private var countsSnapshot: Pair<Long, Map<String, Int>?>? = null
 
     fun start() {
-        customObjectsApi = createCustomObjectsApi() ?: return
+        unregisterBakedInPlaceholders()
+        registerStaticServers()
+        registerListeners()
+
+        customObjectsApi = kubernetesClientFactory() ?: return
         // Same client, already configured as the default above.
         coreApi = CoreV1Api()
-
-        unregisterPreconfiguredServers()
-        registerListeners()
         schedulePolling()
     }
 
@@ -46,31 +76,41 @@ class DiscoveryService(
         }
     }
 
-    fun getServerRole(serverName: String): String? = serverRoles[serverName]
+    fun getServerRole(serverName: String): String? = serverRoles[canonicalServerName(serverName)]
 
-    private fun createCustomObjectsApi(): CustomObjectsApi? {
-        return try {
-            val client = Config.defaultClient()
-            Configuration.setDefaultApiClient(client)
-            CustomObjectsApi(client)
-        } catch (error: Throwable) {
-            logger.warn(
-                "Failed to initialize Agones discovery client (namespace={}, labelSelector={})",
-                config.namespace,
-                config.labelSelector,
-                error,
+    private fun unregisterBakedInPlaceholders() {
+        for (server in proxyServer.allServers.filter(::isBakedInPlaceholder)) {
+            proxyServer.unregisterServer(server.serverInfo)
+            logger.info(
+                "Removed baked-in placeholder server successfully (serverName={})",
+                server.serverInfo.name,
             )
-            null
         }
     }
 
-    private fun unregisterPreconfiguredServers() {
-        val configuredServers = proxyServer.allServers.toList()
-        for (server in configuredServers) {
-            proxyServer.unregisterServer(server.serverInfo)
+    private fun isBakedInPlaceholder(server: RegisteredServer): Boolean {
+        val serverInfo = server.serverInfo
+        return BAKED_IN_PLACEHOLDERS.any { placeholder ->
+            canonicalServerName(placeholder.name) == canonicalServerName(serverInfo.name) &&
+                placeholder.host == serverInfo.address.hostString &&
+                placeholder.port == serverInfo.address.port
+        }
+    }
+
+    private fun registerStaticServers() {
+        for (server in config.staticServers) {
+            proxyServer.registerServer(
+                ServerInfo(
+                    server.name,
+                    InetSocketAddress.createUnresolved(server.host, server.port),
+                )
+            )
+            serverRoles[canonicalServerName(server.name)] = STATIC_SERVER_ROLE
             logger.info(
-                "Removed pre-configured server successfully (serverName={})",
-                server.serverInfo.name,
+                "Registered static proxy server successfully (serverName={}, host={}, port={})",
+                server.name,
+                server.host,
+                server.port,
             )
         }
     }
@@ -78,7 +118,15 @@ class DiscoveryService(
     private fun registerListeners() {
         proxyServer.eventManager.register(
             plugin,
-            DiscoveryPlayerListener(proxyServer, lobbyServers, this::networkCountsCached),
+            DiscoveryPlayerListener(
+                plugin,
+                proxyServer,
+                lobbyServers,
+                this::getServerRole,
+                this::networkCountsCached,
+                drainTransferCookie,
+                sourceCookiePending,
+            ),
         )
     }
 
@@ -109,7 +157,8 @@ class DiscoveryService(
     private fun updateRegisteredGameServers() {
         val runningGameServers = fetchRunningGameServers()
 
-        val currentServers = proxyServer.allServers.associateBy { it.serverInfo.name }
+        val currentServers =
+            proxyServer.allServers.associateBy { canonicalServerName(it.serverInfo.name) }
 
         registerRunningServers(runningGameServers, currentServers)
         unregisterServersThatAreNoLongerRunning(runningGameServers, currentServers)
@@ -156,7 +205,7 @@ class DiscoveryService(
         }
     }
 
-    private fun registerRunningServers(
+    internal fun registerRunningServers(
         runningGameServers: List<GameServer>,
         currentServers: Map<String, RegisteredServer>,
     ) {
@@ -173,47 +222,67 @@ class DiscoveryService(
                 continue
             }
 
-            val serverType = resolveServerType(metadata.labels) ?: continue
-            serverRoles[serverName] = serverType
+            val canonicalName = canonicalServerName(serverName)
+            if (canonicalName in staticServerNames) {
+                logger.warn(
+                    "Skipping Agones GameServer because its name collides with a static server (serverName={})",
+                    serverName,
+                )
+                continue
+            }
 
+            val serverType = resolveServerType(metadata.labels) ?: continue
+            val currentServer = currentServers[canonicalName]
+            if (currentServer != null && agonesManagedServers[canonicalName] !== currentServer) {
+                agonesManagedServers.remove(canonicalName)?.let { ownedServer ->
+                    lobbyServers.remove(ownedServer.serverInfo.name)
+                    serverRoles.remove(canonicalName)
+                }
+                continue
+            }
+
+            if (currentServer == null) {
+                // Agones does not always publish the pod's address in the GameServer's
+                // status. The bundle's lobby fleets carry Hostname, InternalIP AND
+                // PodIP; the fleets forge renders for a pushed gamemode carry only the
+                // first two. A proxy that insists on PodIP therefore throws away every
+                // pushed gamemode — the server runs, is Ready, and no player can ever
+                // reach it, which looks exactly like a broken game.
+                //
+                // The pod is the source of that address anyway, and Agones names it
+                // after the GameServer, so fall back to reading it directly. Never the
+                // node's InternalIP: that would route players to a machine instead of
+                // to their server.
+                val address =
+                    gameServer.status
+                        ?.addresses
+                        ?.firstOrNull { it.type == config.addressType }
+                        ?.address ?: podIp(serverName)
+                if (address == null) {
+                    logger.error(
+                        "Failed to register Agones GameServer (serverName={}, reason=missing_address, addressType={})",
+                        serverName,
+                        config.addressType,
+                    )
+                    continue
+                }
+
+                val serverInfo = ServerInfo(serverName, InetSocketAddress(address, config.port))
+                val registeredServer = proxyServer.registerServer(serverInfo)
+                agonesManagedServers[canonicalName] = registeredServer
+                logger.info(
+                    "Registered proxy server successfully (serverName={}, serverType={})",
+                    serverName,
+                    serverType,
+                )
+            }
+
+            serverRoles[canonicalName] = serverType
             if (serverType == config.lobbyValue) {
                 lobbyServers.add(serverName)
             } else {
                 lobbyServers.remove(serverName)
             }
-
-            if (serverName in currentServers) continue
-
-            // Agones does not always publish the pod's address in the GameServer's
-            // status. The bundle's lobby fleets carry Hostname, InternalIP AND
-            // PodIP; the fleets forge renders for a pushed gamemode carry only the
-            // first two. A proxy that insists on PodIP therefore throws away every
-            // pushed gamemode — the server runs, is Ready, and no player can ever
-            // reach it, which looks exactly like a broken game.
-            //
-            // The pod is the source of that address anyway, and Agones names it
-            // after the GameServer, so fall back to reading it directly. Never the
-            // node's InternalIP: that would route players to a machine instead of
-            // to their server.
-            val address =
-                gameServer.status?.addresses?.firstOrNull { it.type == config.addressType }?.address
-                    ?: podIp(serverName)
-            if (address == null) {
-                logger.error(
-                    "Failed to register Agones GameServer (serverName={}, reason=missing_address, addressType={})",
-                    serverName,
-                    config.addressType,
-                )
-                continue
-            }
-
-            val serverInfo = ServerInfo(serverName, InetSocketAddress(address, config.port))
-            proxyServer.registerServer(serverInfo)
-            logger.info(
-                "Registered proxy server successfully (serverName={}, serverType={})",
-                serverName,
-                serverType,
-            )
         }
     }
 
@@ -228,22 +297,30 @@ class DiscoveryService(
             else -> labels[config.lobbyLabel]
         }
 
-    private fun unregisterServersThatAreNoLongerRunning(
+    internal fun unregisterServersThatAreNoLongerRunning(
         runningGameServers: List<GameServer>,
         currentServers: Map<String, RegisteredServer>,
     ) {
-        val runningServerNames = runningGameServers.mapNotNull { it.metadata?.name }.toSet()
+        val runningServerNames =
+            runningGameServers
+                .mapNotNull { it.metadata?.name }
+                .mapTo(mutableSetOf(), ::canonicalServerName)
 
-        for (server in currentServers.values) {
-            if (server.serverInfo.name !in runningServerNames) {
-                proxyServer.unregisterServer(server.serverInfo)
-                lobbyServers.remove(server.serverInfo.name)
-                serverRoles.remove(server.serverInfo.name)
-                logger.info(
-                    "Unregistered proxy server successfully (serverName={})",
-                    server.serverInfo.name,
-                )
-            }
+        for (canonicalName in
+            staleManagedServerNames(runningServerNames, agonesManagedServers.keys)) {
+            val ownedServer = agonesManagedServers[canonicalName] ?: continue
+            currentServers[canonicalName]
+                ?.takeIf { it === ownedServer }
+                ?.let { server ->
+                    proxyServer.unregisterServer(server.serverInfo)
+                    logger.info(
+                        "Unregistered proxy server successfully (serverName={})",
+                        ownedServer.serverInfo.name,
+                    )
+                }
+            lobbyServers.remove(ownedServer.serverInfo.name)
+            serverRoles.remove(canonicalName)
+            agonesManagedServers.remove(canonicalName, ownedServer)
         }
     }
 
@@ -251,6 +328,13 @@ class DiscoveryService(
         private const val GROUP = "agones.dev"
         private const val VERSION = "v1"
         private const val PLURAL = "gameservers"
+        private const val STATIC_SERVER_ROLE = "static"
+        private val BAKED_IN_PLACEHOLDERS =
+            setOf(
+                StaticServer("lobby", "127.0.0.1", 30066),
+                StaticServer("factions", "127.0.0.1", 30067),
+                StaticServer("minigames", "127.0.0.1", 30068),
+            )
         private val COUNTS_TTL_NANOS = TimeUnit.SECONDS.toNanos(2)
     }
 }

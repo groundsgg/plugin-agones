@@ -19,6 +19,7 @@ class DiscoveryConfigTest {
         assertEquals(Duration.ofSeconds(2), cfg.pollInterval)
         assertEquals("PodIP", cfg.addressType)
         assertEquals(25565, cfg.port)
+        assertEquals(emptyList<StaticServer>(), cfg.staticServers)
     }
 
     @Test
@@ -120,5 +121,97 @@ class DiscoveryConfigTest {
         // Defaults preserved for the rest
         assertEquals(25565, cfg.port)
         assertEquals(Duration.ofSeconds(2), cfg.pollInterval)
+    }
+
+    @Test
+    fun `static servers parse comma separated name host and port entries`() {
+        assertEquals(
+            listOf(
+                StaticServer("buildserver", "buildserver", 25565),
+                StaticServer("metrics", "metrics.stage.svc.cluster.local", 25566),
+            ),
+            DiscoveryConfig.fromEnv(
+                    env =
+                        mapOf(
+                            "GROUNDS_STATIC_SERVERS" to
+                                " buildserver=buildserver:25565, metrics=metrics.stage.svc.cluster.local:25566 "
+                        )
+                )
+                .staticServers,
+        )
+    }
+
+    @Test
+    fun `static servers reject entries without a name address separator`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DiscoveryConfig.fromEnv(env = mapOf("GROUNDS_STATIC_SERVERS" to "buildserver:25565"))
+        }
+    }
+
+    @Test
+    fun `static servers reject entries with an empty name`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DiscoveryConfig.fromEnv(env = mapOf("GROUNDS_STATIC_SERVERS" to "=buildserver:25565"))
+        }
+    }
+
+    @Test
+    fun `static servers reject entries with an empty host`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DiscoveryConfig.fromEnv(env = mapOf("GROUNDS_STATIC_SERVERS" to "buildserver=:25565"))
+        }
+    }
+
+    @Test
+    fun `static servers reject entries with port zero`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DiscoveryConfig.fromEnv(
+                env = mapOf("GROUNDS_STATIC_SERVERS" to "buildserver=buildserver:0")
+            )
+        }
+    }
+
+    @Test
+    fun `static servers reject entries with ports above 65535`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DiscoveryConfig.fromEnv(
+                env = mapOf("GROUNDS_STATIC_SERVERS" to "buildserver=buildserver:65536")
+            )
+        }
+    }
+
+    @Test
+    fun `static servers reject entries with non numeric ports`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DiscoveryConfig.fromEnv(
+                env = mapOf("GROUNDS_STATIC_SERVERS" to "buildserver=buildserver:abc")
+            )
+        }
+    }
+
+    @Test
+    fun `static servers reject duplicate names`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DiscoveryConfig.fromEnv(
+                env =
+                    mapOf(
+                        "GROUNDS_STATIC_SERVERS" to
+                            "buildserver=buildserver:25565,buildserver=other:25566"
+                    )
+            )
+        }
+    }
+
+    @Test
+    fun `static servers reject duplicate names that differ only by case`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DiscoveryConfig.fromEnv(
+                env =
+                    mapOf(
+                        "GROUNDS_STATIC_SERVERS" to
+                            "BuildServer=buildserver:25565,buildserver=other:25566"
+                    )
+            )
+        }
     }
 }

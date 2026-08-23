@@ -13,6 +13,7 @@ import gg.grounds.drain.DrainConfig
 import gg.grounds.drain.DrainHttpServer
 import gg.grounds.drain.DrainListener
 import gg.grounds.drain.DrainManager
+import gg.grounds.drain.DrainTransferCookie
 import gg.grounds.gameserver.GameServerStateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,8 +54,18 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
 
         stateManager =
             GameServerStateManager(this, proxyServer, logger, coroutineScope).also { it.start() }
+        val drainCookie = DrainTransferCookie(System.getenv(DrainTransferCookie.SECRET_ENV))
+        lateinit var drainManager: DrainManager
         discoveryService =
-            DiscoveryService(this, proxyServer, logger, discoveryConfig).also { it.start() }
+            DiscoveryService(
+                    this,
+                    proxyServer,
+                    logger,
+                    discoveryConfig,
+                    drainTransferCookie = drainCookie,
+                    sourceCookiePending = { playerId -> drainManager.isCookiePending(playerId) },
+                )
+                .also { it.start() }
 
         proxyServer.commandManager.register(
             proxyServer.commandManager.metaBuilder("agones").build(),
@@ -62,7 +73,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
         )
 
         val drainConfig = DrainConfig.fromEnv()
-        val drainManager =
+        drainManager =
             DrainManager(
                 this,
                 proxyServer,
@@ -70,6 +81,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
                 drainConfig,
                 { serverName -> discoveryService.getServerRole(serverName) },
                 discoveryConfig.lobbyValue,
+                drainCookie,
             )
         proxyServer.eventManager.register(this, DrainListener(drainManager))
         drainHttpServer =
