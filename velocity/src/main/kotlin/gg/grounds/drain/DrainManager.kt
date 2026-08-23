@@ -21,8 +21,8 @@ import org.slf4j.Logger
  *   becomes the transfer), or the pod's termination ends the session. A transfer would end the
  *   round just as surely, only earlier.
  *
- * "Inside a round" is decided by the server's `grounds/server-type` role: anything that is not the
- * lobby role defers the transfer. A server that discovery has no role for cannot be a protected
+ * "Inside a round" is decided by the server's `grounds/server-type` role: only the `game` and
+ * `match` roles defer the transfer. A server that discovery has no role for cannot be a protected
  * round.
  */
 class DrainManager(
@@ -32,6 +32,7 @@ class DrainManager(
     private val config: DrainConfig,
     private val serverRole: (String) -> String?,
     private val lobbyValue: String,
+    private val drainTransferCookie: DrainTransferCookie = DrainTransferCookie(),
 ) {
     @Volatile
     var isDraining: Boolean = false
@@ -102,16 +103,17 @@ class DrainManager(
      */
     private fun transferOut(player: Player, force: Boolean): Boolean {
         val host = config.transferHost
-        val transferable =
-            host != null && player.protocolVersion >= ProtocolVersion.MINECRAFT_1_20_5
-        if (transferable) {
+        if (host != null && player.protocolVersion >= ProtocolVersion.MINECRAFT_1_20_5) {
+            currentStaticServerName(player)?.let { serverName ->
+                player.storeCookie(DrainTransferCookie.KEY, drainTransferCookie.encode(serverName))
+            }
             logger.info(
                 "Draining player via transfer (player={}, target={}:{})",
                 player.username,
                 host,
                 config.transferPort,
             )
-            player.transferToHost(InetSocketAddress.createUnresolved(host!!, config.transferPort))
+            player.transferToHost(InetSocketAddress.createUnresolved(host, config.transferPort))
             return true
         }
         if (force) {
@@ -124,16 +126,28 @@ class DrainManager(
     private fun roleOf(player: Player): String? =
         player.currentServer.map { it.serverInfo.name }.orElse(null)?.let(serverRole)
 
+    private fun currentStaticServerName(player: Player): String? =
+        player.currentServer
+            .map { it.serverInfo.name }
+            .orElse(null)
+            ?.takeIf { serverName -> shouldPreserveStaticBackend(serverRole(serverName)) }
+
     companion object {
         val RESTART_MESSAGE: Component =
             Component.text("This proxy is restarting — please reconnect.")
 
         /**
-         * A transfer is deferred only for players on a server whose role is a real, non-lobby role:
-         * that is where a round can be running. No server or no role means nothing to protect.
+         * A transfer is deferred only for players on a real round server. No server, an unknown
+         * role, a lobby, or a static server means nothing to protect.
          */
         @JvmStatic
-        fun shouldDefer(role: String?, lobbyValue: String): Boolean =
-            role != null && role != lobbyValue
+        @Suppress("UNUSED_PARAMETER")
+        fun shouldDefer(role: String?, lobbyValue: String): Boolean = role in ROUND_ROLES
+
+        @JvmStatic
+        fun shouldPreserveStaticBackend(role: String?): Boolean = role == STATIC_SERVER_ROLE
+
+        private val ROUND_ROLES = setOf("game", "match")
+        private const val STATIC_SERVER_ROLE = "static"
     }
 }
