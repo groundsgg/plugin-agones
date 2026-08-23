@@ -36,6 +36,17 @@ deployments do not need to set anything.
 | `GROUNDS_AGONES_POLL_INTERVAL`   | `2s`                                            | Accepts `Ns`, `Nm`, `Nh`                                              |
 | `GROUNDS_AGONES_ADDRESS_TYPE`    | `PodIP`                                         | Which entry of `status.addresses` to dial (`PodIP`, `ExternalIP`, …)  |
 | `GROUNDS_AGONES_PORT`            | `25565`                                         | TCP port on the GameServer                                            |
+| `GROUNDS_STATIC_SERVERS`         | _(none)_                                        | Comma-separated `name=host:port` static Velocity backends             |
+
+`GROUNDS_STATIC_SERVERS` is validated strictly: names and hosts must be non-empty, ports must be
+between `1` and `65535`, and names must be unique. For example, Stage proxies can use:
+
+```text
+GROUNDS_STATIC_SERVERS=buildserver=buildserver:25565
+```
+
+This only registers the backend with Velocity; configuring the backend itself for Velocity
+forwarding remains a separate deployment concern.
 
 Typical Helm chart wiring uses a `ConfigMap` consumed via `envFrom`, plus
 `POD_NAMESPACE` from the Downward API for clusters where the proxy should
