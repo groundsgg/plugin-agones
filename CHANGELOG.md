@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/groundsgg/plugin-agones/compare/v1.0.0...v1.1.0) (2026-08-23)
+
+
+### Features
+
+* **velocity:** support static server discovery ([#75](https://github.com/groundsgg/plugin-agones/issues/75)) ([dd82813](https://github.com/groundsgg/plugin-agones/commit/dd8281324fad3a6b9ef7793722f492ce548760dd))
+
 ## [1.0.0](https://github.com/groundsgg/plugin-agones/compare/v0.8.1...v1.0.0) (2026-08-03)
 
 
