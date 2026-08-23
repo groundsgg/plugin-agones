@@ -21,6 +21,12 @@ internal fun staleManagedServerNames(
     agonesManagedServerNames: Set<String>,
 ): Set<String> = agonesManagedServerNames - runningAgonesServerNames
 
+internal fun shouldApplyAgonesState(
+    serverName: String,
+    currentServerNames: Set<String>,
+    agonesManagedServerNames: Set<String>,
+): Boolean = serverName !in currentServerNames || serverName in agonesManagedServerNames
+
 class DiscoveryService(
     private val plugin: Any,
     private val proxyServer: ProxyServer,
@@ -208,6 +214,9 @@ class DiscoveryService(
             }
 
             val serverType = resolveServerType(metadata.labels) ?: continue
+            if (!shouldApplyAgonesState(serverName, currentServers.keys, agonesManagedServers)) {
+                continue
+            }
 
             if (serverName !in currentServers) {
                 // Agones does not always publish the pod's address in the GameServer's
