@@ -201,4 +201,17 @@ class DiscoveryConfigTest {
             )
         }
     }
+
+    @Test
+    fun `static servers reject duplicate names that differ only by case`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DiscoveryConfig.fromEnv(
+                env =
+                    mapOf(
+                        "GROUNDS_STATIC_SERVERS" to
+                            "BuildServer=buildserver:25565,buildserver=other:25566"
+                    )
+            )
+        }
+    }
 }

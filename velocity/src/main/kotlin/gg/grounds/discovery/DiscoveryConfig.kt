@@ -1,6 +1,9 @@
 package gg.grounds.discovery
 
 import java.time.Duration
+import java.util.Locale
+
+internal fun canonicalServerName(name: String): String = name.lowercase(Locale.ROOT)
 
 /**
  * Discovery configuration sourced from environment variables. All keys are optional; the defaults
@@ -105,7 +108,7 @@ data class DiscoveryConfig(
                 require(host.isNotEmpty() && port != null && port in 1..65535) {
                     "Invalid GROUNDS_STATIC_SERVERS entry '$trimmedEntry'"
                 }
-                require(names.add(name)) {
+                require(names.add(canonicalServerName(name))) {
                     "Invalid GROUNDS_STATIC_SERVERS entry '$trimmedEntry': duplicate name '$name'"
                 }
 
