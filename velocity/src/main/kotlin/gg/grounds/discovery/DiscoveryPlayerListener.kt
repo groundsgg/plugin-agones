@@ -23,11 +23,19 @@ internal fun selectDrainStaticServer(
     serverRole: (String) -> String?,
 ): RegisteredServer? =
     servers.firstOrNull { server ->
-        server.serverInfo.name == serverName &&
+        canonicalServerName(server.serverInfo.name) == canonicalServerName(serverName) &&
             serverRole(server.serverInfo.name) == STATIC_SERVER_ROLE
     }
 
 private const val STATIC_SERVER_ROLE = "static"
+
+internal fun consumeDrainTransferCookie(clearCookie: () -> Unit) {
+    try {
+        clearCookie()
+    } catch (_: Exception) {
+        // The destination choice and its continuation must not depend on client cookie storage.
+    }
+}
 
 class DiscoveryPlayerListener(
     private val plugin: Any,
@@ -94,7 +102,11 @@ class DiscoveryPlayerListener(
     fun onCookieReceive(event: CookieReceiveEvent) {
         if (event.originalKey != DrainTransferCookie.KEY) return
         event.result = CookieReceiveEvent.ForwardResult.handled()
-        pendingCookies.remove(event.player.uniqueId)?.complete(event.originalData)
+        val payload = event.originalData
+        consumeDrainTransferCookie {
+            event.player.storeCookie(DrainTransferCookie.KEY, byteArrayOf())
+        }
+        pendingCookies.remove(event.player.uniqueId)?.complete(payload)
     }
 
     private fun chooseServer(event: PlayerChooseInitialServerEvent, payload: ByteArray?) {
@@ -104,7 +116,6 @@ class DiscoveryPlayerListener(
                 selectDrainStaticServer(serverName, proxyServer.allServers, serverRole)
             }
         if (preferred != null) {
-            event.player.storeCookie(DrainTransferCookie.KEY, byteArrayOf())
             event.setInitialServer(preferred)
             return
         }
@@ -145,6 +156,6 @@ class DiscoveryPlayerListener(
     }
 
     private companion object {
-        private const val COOKIE_TIMEOUT_MILLIS = 250L
+        private const val COOKIE_TIMEOUT_MILLIS = 1_000L
     }
 }

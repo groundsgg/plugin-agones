@@ -23,6 +23,15 @@ class DrainStaticServerSelectionTest {
     }
 
     @Test
+    fun `matches a static server name from the drain cookie case insensitively`() {
+        val buildserver = registeredServer("BuildServer")
+
+        val selected = selectDrainStaticServer("buildserver", listOf(buildserver)) { "static" }
+
+        assertSame(buildserver, selected)
+    }
+
+    @Test
     fun `does not select an Agones round server named by the drain cookie`() {
         val game = registeredServer("game-7")
 
