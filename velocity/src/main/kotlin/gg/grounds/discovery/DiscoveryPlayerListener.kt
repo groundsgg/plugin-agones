@@ -115,7 +115,9 @@ class DiscoveryPlayerListener(
             }
         }
 
-    @Subscribe
+    // This must run before DrainListener: source-proxy cookie echoes belong to its stager, not to
+    // initial-server selection. Velocity invokes higher priorities first.
+    @Subscribe(priority = DRAIN_COOKIE_SOURCE_SUPPRESSION_PRIORITY)
     fun onCookieReceive(event: CookieReceiveEvent) {
         if (event.originalKey != DrainTransferCookie.KEY) return
         if (sourceCookiePending(event.player.uniqueId.toString())) return
@@ -175,5 +177,6 @@ class DiscoveryPlayerListener(
 
     private companion object {
         private const val COOKIE_TIMEOUT_MILLIS = 1_000L
+        private const val DRAIN_COOKIE_SOURCE_SUPPRESSION_PRIORITY: Short = 100
     }
 }
