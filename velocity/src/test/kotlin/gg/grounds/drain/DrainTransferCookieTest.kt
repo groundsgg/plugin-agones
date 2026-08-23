@@ -59,4 +59,10 @@ class DrainTransferCookieTest {
 
         assertNull(cookie.decode(payload))
     }
+
+    @Test
+    fun `blank or missing secrets disable cookie preservation`() {
+        assertNull(DrainTransferCookie(null, clock).encode("buildserver"))
+        assertNull(DrainTransferCookie("  ", clock).encode("buildserver"))
+    }
 }

@@ -8,6 +8,20 @@ import java.util.concurrent.TimeUnit
 import net.kyori.adventure.text.Component
 import org.slf4j.Logger
 
+internal fun <T> transferAllSafely(
+    players: Iterable<T>,
+    transfer: (T) -> Unit,
+    onFailure: (T, Exception) -> Unit,
+) {
+    players.forEach { player ->
+        try {
+            transfer(player)
+        } catch (error: Exception) {
+            onFailure(player, error)
+        }
+    }
+}
+
 /**
  * Moves players off this proxy before it shuts down, instead of letting Velocity kick them.
  *
@@ -55,16 +69,21 @@ class DrainManager(
             config.transferHost?.let { "$it:${config.transferPort}" } ?: "<none — wait only>",
         )
 
-        proxy.allPlayers.forEach { player ->
-            if (!shouldDefer(roleOf(player), lobbyValue)) {
-                transferOut(player, force = false)
-            }
-        }
-
         proxy.scheduler
             .buildTask(plugin, Runnable { onDeadline() })
             .delay(deadlineSeconds, TimeUnit.SECONDS)
             .schedule()
+        transferAllSafely(
+            proxy.allPlayers.filter { !shouldDefer(roleOf(it), lobbyValue) },
+            { player -> transferOut(player, force = false) },
+            { player, error ->
+                logger.warn(
+                    "Failed to transfer draining player {}; leaving for deadline",
+                    player.username,
+                    error,
+                )
+            },
+        )
         return true
     }
 
@@ -87,7 +106,13 @@ class DrainManager(
                 "Drain deadline reached; transferring {} players not inside a round",
                 drainable.size,
             )
-            drainable.forEach { transferOut(it, force = true) }
+            transferAllSafely(
+                drainable,
+                { player -> transferOut(player, force = true) },
+                { player, error ->
+                    logger.warn("Failed to transfer draining player {}", player.username, error)
+                },
+            )
         }
         if (inRound.isNotEmpty()) {
             logger.warn(
