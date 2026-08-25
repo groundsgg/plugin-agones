@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/groundsgg/plugin-agones/compare/v1.1.0...v1.2.0) (2026-08-25)
+
+
+### Features
+
+* publish ServerDisplayQuery from Agones discovery ([#77](https://github.com/groundsgg/plugin-agones/issues/77)) ([afd1890](https://github.com/groundsgg/plugin-agones/commit/afd1890f4511c149dec7e1e3a1bea50bb24168ec))
+
 ## [1.1.0](https://github.com/groundsgg/plugin-agones/compare/v1.0.0...v1.1.0) (2026-08-23)
 
 
