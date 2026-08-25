@@ -8,6 +8,7 @@ import com.velocitypowered.api.plugin.Plugin
 import com.velocitypowered.api.proxy.ProxyServer
 import gg.grounds.command.AgonesCommand
 import gg.grounds.discovery.DiscoveryConfig
+import gg.grounds.discovery.DiscoveryServerDisplayQuery
 import gg.grounds.discovery.DiscoveryService
 import gg.grounds.drain.DrainConfig
 import gg.grounds.drain.DrainHttpServer
@@ -15,6 +16,8 @@ import gg.grounds.drain.DrainListener
 import gg.grounds.drain.DrainManager
 import gg.grounds.drain.DrainTransferCookie
 import gg.grounds.gameserver.GameServerStateManager
+import gg.grounds.proxy.api.ProxyServiceRegistry
+import gg.grounds.proxy.api.ServerDisplayQuery
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -67,6 +70,13 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
                 )
                 .also { it.start() }
 
+        withProxyApi("register") {
+            ProxyServiceRegistry.register(
+                ServerDisplayQuery::class.java,
+                DiscoveryServerDisplayQuery { name -> discoveryService.getServerRole(name) },
+            )
+        }
+
         proxyServer.commandManager.register(
             proxyServer.commandManager.metaBuilder("agones").build(),
             AgonesCommand(proxyServer, { serverName -> discoveryService.getServerRole(serverName) }),
@@ -92,6 +102,9 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
 
     @Subscribe
     fun onProxyShutdown(event: ProxyShutdownEvent) {
+        withProxyApi("unregister") {
+            ProxyServiceRegistry.unregister(ServerDisplayQuery::class.java)
+        }
         if (this::drainHttpServer.isInitialized) {
             drainHttpServer.stop()
         }
@@ -102,5 +115,25 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
             stateManager.stop()
         }
         coroutineScope.cancel()
+    }
+
+    /**
+     * Publishes the server display query, if there is a proxy API to publish it into.
+     *
+     * `plugin-proxy-api` is compileOnly, so on a proxy without plugin-proxy the registry class
+     * simply is not there. That must cost this plugin its server display publishing and nothing
+     * else -- discovery and drain are the job, and letting a NoClassDefFoundError out of here would
+     * take the command registration below it down as well.
+     */
+    private fun withProxyApi(action: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (error: NoClassDefFoundError) {
+            logger.info(
+                "Server display not published ({}): plugin-proxy is not loaded (missing={})",
+                action,
+                error.message,
+            )
+        }
     }
 }
