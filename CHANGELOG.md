@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/groundsgg/plugin-agones/compare/v1.2.0...v2.0.0) (2026-10-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **minestom:** plugin-agones-minestom now requires Minestom 26.3.
+
+### Features
+
+* **minestom:** build against minecraft 26.3 ([#81](https://github.com/groundsgg/plugin-agones/issues/81)) ([41924a0](https://github.com/groundsgg/plugin-agones/commit/41924a0413782eeb89995475825a8f1454881ec1))
+
 ## [1.2.0](https://github.com/groundsgg/plugin-agones/compare/v1.1.0...v1.2.0) (2026-08-25)
 
 
