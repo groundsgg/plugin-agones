@@ -32,7 +32,10 @@ jobs:
           mkdir -p ~/.gradle
           {
             echo "github.user=${{ github.actor }}"
-            echo "github.token=${{ secrets.GITHUB_TOKEN }}"
+            # Reading only. PACKAGES_TOKEN can read packages owned by other private
+            # repos (the groundsgg/minestom fork); this job's GITHUB_TOKEN cannot.
+            # Unset falls back to GITHUB_TOKEN. Publishing uses the env token below.
+            echo "github.token=${{ secrets.PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}"
           } > ~/.gradle/gradle.properties
 
       - name: Spotless
