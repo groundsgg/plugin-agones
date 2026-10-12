@@ -1,12 +1,15 @@
 package gg.grounds.discovery
 
 import com.velocitypowered.api.event.EventManager
+import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.api.proxy.server.ServerInfo
 import java.lang.reflect.Proxy
 import java.net.InetSocketAddress
+import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
@@ -108,6 +111,134 @@ class DiscoveryServiceTest {
 
         assertTrue(removed.isEmpty())
     }
+
+    @Test
+    fun `a lobby whose GameServerSet was scaled to 0 is outdated and skipped for joins`() {
+        val service = lobbyService()
+        service.refreshRetiredGameServerSets {
+            listOf(gameServerSet("lobby-old-set", replicas = 0), gameServerSet("lobby-new-set", 2))
+        }
+
+        assertTrue(service.isOutdated("lobby-old"))
+        assertFalse(service.isOutdated("lobby-new"))
+        assertEquals("lobby-new", service.pickLobby()?.serverInfo?.name)
+    }
+
+    @Test
+    fun `unreadable GameServerSets mark nothing outdated`() {
+        val service = lobbyService()
+        service.refreshRetiredGameServerSets { listOf(gameServerSet("lobby-old-set", 0)) }
+
+        service.refreshRetiredGameServerSets { throw IllegalStateException("403 Forbidden") }
+
+        assertFalse(service.isOutdated("lobby-old"))
+        // Back to plain least-occupied: the empty old lobby wins again.
+        assertEquals("lobby-old", service.pickLobby()?.serverInfo?.name)
+    }
+
+    @Test
+    fun `a set without a replica count is not treated as retired`() {
+        assertEquals(
+            setOf("retired"),
+            retiredGameServerSetNames(
+                listOf(
+                    gameServerSet("retired", 0),
+                    gameServerSet("unknown", null),
+                    gameServerSet("live", 1),
+                )
+            ),
+        )
+    }
+
+    @Test
+    fun `pickLobby never returns the excluded lobby`() {
+        val service = lobbyService()
+
+        assertEquals("lobby-new", service.pickLobby(exclude = "LOBBY-OLD")?.serverInfo?.name)
+    }
+
+    /**
+     * Two registered lobbies, the old one empty and the new one holding a player — so plain
+     * least-occupied would pick the old one, and only the outdated check sends joins elsewhere.
+     */
+    private fun lobbyService(): DiscoveryService {
+        val oldLobby =
+            proxy<RegisteredServer>(
+                mapOf(
+                    "getServerInfo" to
+                        ServerInfo(
+                            "lobby-old",
+                            InetSocketAddress.createUnresolved("10.0.0.1", 25565),
+                        ),
+                    "getPlayersConnected" to emptyList<Player>(),
+                )
+            )
+        val newLobby =
+            proxy<RegisteredServer>(
+                mapOf(
+                    "getServerInfo" to
+                        ServerInfo(
+                            "lobby-new",
+                            InetSocketAddress.createUnresolved("10.0.0.2", 25565),
+                        ),
+                    "getPlayersConnected" to listOf(proxy<Player>()),
+                )
+            )
+        val servers = listOf(oldLobby, newLobby)
+        val service =
+            DiscoveryService(
+                plugin = Any(),
+                proxyServer =
+                    proxy(
+                        mapOf(
+                            "getAllServers" to servers,
+                            "getEventManager" to proxy<EventManager>(),
+                            "registerServer" to
+                                { args: Array<out Any?> ->
+                                    val info = args.single() as ServerInfo
+                                    servers.single { it.serverInfo.name == info.name }
+                                },
+                            "getServer" to
+                                { args: Array<out Any?> ->
+                                    Optional.ofNullable(
+                                        servers.firstOrNull {
+                                            it.serverInfo.name.equals(
+                                                args.single() as String,
+                                                ignoreCase = true,
+                                            )
+                                        }
+                                    )
+                                },
+                        )
+                    ),
+                logger = LoggerFactory.getLogger(javaClass),
+                config = DiscoveryConfig.fromEnv(emptyMap()),
+                kubernetesClientFactory = { null },
+            )
+        service.registerRunningServers(
+            listOf(lobby("lobby-old", "lobby-old-set"), lobby("lobby-new", "lobby-new-set")),
+            emptyMap(),
+        )
+        return service
+    }
+
+    private fun lobby(name: String, set: String) =
+        GameServer(
+            metadata =
+                Metadata(
+                    name = name,
+                    labels =
+                        mapOf("grounds/server-type" to "lobby", "agones.dev/gameserverset" to set),
+                ),
+            status =
+                Status(
+                    state = "Allocated",
+                    addresses = listOf(GameServerAddress("10.0.0.9", "PodIP")),
+                ),
+        )
+
+    private fun gameServerSet(name: String, replicas: Int?) =
+        GameServerSet(Metadata(name = name), GameServerSetSpec(replicas))
 
     private fun proxyServer(
         servers: List<RegisteredServer>,
