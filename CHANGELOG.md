@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/groundsgg/plugin-agones/compare/v2.0.0...v2.1.0) (2026-10-12)
+
+
+### Features
+
+* **velocity:** drain outdated lobbies and fix the drain transfer target ([#83](https://github.com/groundsgg/plugin-agones/issues/83)) ([2c25345](https://github.com/groundsgg/plugin-agones/commit/2c253453a8106a6d50729a4df2f3878f6147501f))
+
 ## [2.0.0](https://github.com/groundsgg/plugin-agones/compare/v1.2.0...v2.0.0) (2026-10-05)
 
 
