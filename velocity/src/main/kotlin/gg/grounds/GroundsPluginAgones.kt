@@ -10,6 +10,8 @@ import gg.grounds.command.AgonesCommand
 import gg.grounds.discovery.DiscoveryConfig
 import gg.grounds.discovery.DiscoveryServerDisplayQuery
 import gg.grounds.discovery.DiscoveryService
+import gg.grounds.discovery.LobbyKickListener
+import gg.grounds.discovery.OutdatedLobbyMover
 import gg.grounds.drain.DrainConfig
 import gg.grounds.drain.DrainHttpServer
 import gg.grounds.drain.DrainListener
@@ -39,6 +41,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
     private lateinit var stateManager: GameServerStateManager
     private lateinit var discoveryService: DiscoveryService
     private lateinit var drainHttpServer: DrainHttpServer
+    private lateinit var outdatedLobbyMover: OutdatedLobbyMover
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
@@ -94,6 +97,24 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
                 drainCookie,
             )
         proxyServer.eventManager.register(this, DrainListener(drainManager))
+        proxyServer.eventManager.register(
+            this,
+            LobbyKickListener(
+                { serverName ->
+                    discoveryService.getServerRole(serverName) == discoveryConfig.lobbyValue
+                },
+                { exclude -> discoveryService.pickLobby(exclude) },
+            ),
+        )
+        outdatedLobbyMover =
+            OutdatedLobbyMover(
+                    this,
+                    proxyServer,
+                    logger,
+                    discoveryService::lobbyCandidates,
+                    { drainManager.isDraining },
+                )
+                .also { it.start() }
         drainHttpServer =
             DrainHttpServer(drainManager, drainConfig.httpPort, logger).also { it.start() }
 
@@ -107,6 +128,9 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
         }
         if (this::drainHttpServer.isInitialized) {
             drainHttpServer.stop()
+        }
+        if (this::outdatedLobbyMover.isInitialized) {
+            outdatedLobbyMover.stop()
         }
         if (this::discoveryService.isInitialized) {
             discoveryService.stop()

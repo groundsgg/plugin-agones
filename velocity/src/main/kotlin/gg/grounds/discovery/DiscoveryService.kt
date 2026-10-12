@@ -7,6 +7,7 @@ import com.velocitypowered.api.proxy.server.ServerInfo
 import com.velocitypowered.api.scheduler.ScheduledTask
 import gg.grounds.proxy.api.ProxyService
 import gg.grounds.proxy.api.ProxyServiceRegistry
+import io.kubernetes.client.openapi.ApiException
 import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.apis.CustomObjectsApi
@@ -15,6 +16,15 @@ import java.net.InetSocketAddress
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import org.slf4j.Logger
+
+/**
+ * The GameServerSets a Fleet rollout has retired. A rolling update scales the old set down as its
+ * Ready servers go, and pins it at `spec.replicas == 0` once only Allocated ones are left — it is
+ * kept around for exactly those, and Agones deletes each of them the moment it is Ready again. A
+ * set without a replica count is not treated as retired: unknown must not reroute anyone.
+ */
+internal fun retiredGameServerSetNames(sets: List<GameServerSet>): Set<String> =
+    sets.filter { it.spec?.replicas == 0 }.mapNotNullTo(mutableSetOf()) { it.metadata?.name }
 
 internal fun staleManagedServerNames(
     runningAgonesServerNames: Set<String>,
@@ -55,6 +65,10 @@ class DiscoveryService(
     private val lobbyServers: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val serverRoles: MutableMap<String, String> = ConcurrentHashMap()
     private val agonesManagedServers: MutableMap<String, RegisteredServer> = ConcurrentHashMap()
+    /** Canonical server name -> the GameServerSet that owns it (`agones.dev/gameserverset`). */
+    private val owningGameServerSets: MutableMap<String, String> = ConcurrentHashMap()
+    @Volatile private var retiredGameServerSets: Set<String> = emptySet()
+    @Volatile private var gameServerSetsUnreadable = false
     private val staticServerNames =
         config.staticServers.mapTo(mutableSetOf()) { canonicalServerName(it.name) }
     @Volatile private var countsSnapshot: Pair<Long, Map<String, Int>?>? = null
@@ -77,6 +91,40 @@ class DiscoveryService(
     }
 
     fun getServerRole(serverName: String): String? = serverRoles[canonicalServerName(serverName)]
+
+    /**
+     * True when this server belongs to a GameServerSet a Fleet rollout has retired: it only still
+     * exists because it was Allocated when the rollout ran. False whenever that cannot be known —
+     * no owning set, or GameServerSets unreadable (the proxy's Role lacks them).
+     */
+    fun isOutdated(serverName: String): Boolean =
+        owningGameServerSets[canonicalServerName(serverName)]?.let { it in retiredGameServerSets }
+            ?: false
+
+    /** Every registered lobby, with its player count and whether it is outdated. */
+    fun lobbyCandidates(): List<LobbySelection.Candidate> {
+        val lobbies = proxyServer.allServers.filter { it.serverInfo.name in lobbyServers }
+        if (lobbies.isEmpty()) return emptyList()
+        val counts = networkCountsCached()
+        return lobbies.map { server ->
+            val name = server.serverInfo.name
+            LobbySelection.Candidate(
+                name,
+                if (counts != null) counts[name] ?: 0 else server.playersConnected.size,
+                isOutdated(name),
+            )
+        }
+    }
+
+    /** The lobby a player should be sent to, never [exclude]; see [LobbySelection.pick]. */
+    fun pickLobby(exclude: String? = null): RegisteredServer? {
+        val candidates =
+            lobbyCandidates().filter {
+                exclude == null || canonicalServerName(it.name) != canonicalServerName(exclude)
+            }
+        val chosen = LobbySelection.pick(candidates) ?: return null
+        return proxyServer.getServer(chosen).orElse(null)
+    }
 
     private fun unregisterBakedInPlaceholders() {
         for (server in proxyServer.allServers.filter(::isBakedInPlaceholder)) {
@@ -121,9 +169,8 @@ class DiscoveryService(
             DiscoveryPlayerListener(
                 plugin,
                 proxyServer,
-                lobbyServers,
+                { pickLobby() },
                 this::getServerRole,
-                this::networkCountsCached,
                 drainTransferCookie,
                 sourceCookiePending,
             ),
@@ -162,6 +209,44 @@ class DiscoveryService(
 
         registerRunningServers(runningGameServers, currentServers)
         unregisterServersThatAreNoLongerRunning(runningGameServers, currentServers)
+        refreshRetiredGameServerSets(::fetchGameServerSets)
+    }
+
+    private fun fetchGameServerSets(): List<GameServerSet> {
+        val raw =
+            customObjectsApi
+                .listNamespacedCustomObject(GROUP, VERSION, config.namespace, GAME_SERVER_SETS)
+                .execute()
+        return gson.fromJson(gson.toJson(raw), GameServerSetList::class.java).items
+    }
+
+    /**
+     * Any failure leaves nothing outdated — routing is then exactly what it was before this
+     * existed. Logged once per failing streak, not every poll: a Role without `gameserversets` is a
+     * steady state, not an incident.
+     */
+    internal fun refreshRetiredGameServerSets(fetch: () -> List<GameServerSet>) {
+        retiredGameServerSets =
+            try {
+                retiredGameServerSetNames(fetch()).also {
+                    if (gameServerSetsUnreadable) {
+                        gameServerSetsUnreadable = false
+                        logger.info("GameServerSets readable again; outdated-lobby detection on")
+                    }
+                }
+            } catch (error: Throwable) {
+                if (!gameServerSetsUnreadable) {
+                    gameServerSetsUnreadable = true
+                    logger.warn(
+                        "Cannot read Agones GameServerSets (namespace={}, reason={}); " +
+                            "outdated-lobby detection is off until they are readable — " +
+                            "the proxy's Role needs get/list on gameserversets",
+                        config.namespace,
+                        (error as? ApiException)?.code ?: error.message,
+                    )
+                }
+                emptySet()
+            }
     }
 
     /** The GameServer's pod carries the same name, so this is a direct lookup. */
@@ -237,6 +322,7 @@ class DiscoveryService(
                 agonesManagedServers.remove(canonicalName)?.let { ownedServer ->
                     lobbyServers.remove(ownedServer.serverInfo.name)
                     serverRoles.remove(canonicalName)
+                    owningGameServerSets.remove(canonicalName)
                 }
                 continue
             }
@@ -278,6 +364,8 @@ class DiscoveryService(
             }
 
             serverRoles[canonicalName] = serverType
+            metadata.labels[GAME_SERVER_SET_LABEL]?.let { owningGameServerSets[canonicalName] = it }
+                ?: owningGameServerSets.remove(canonicalName)
             if (serverType == config.lobbyValue) {
                 lobbyServers.add(serverName)
             } else {
@@ -320,6 +408,7 @@ class DiscoveryService(
                 }
             lobbyServers.remove(ownedServer.serverInfo.name)
             serverRoles.remove(canonicalName)
+            owningGameServerSets.remove(canonicalName)
             agonesManagedServers.remove(canonicalName, ownedServer)
         }
     }
@@ -328,6 +417,8 @@ class DiscoveryService(
         private const val GROUP = "agones.dev"
         private const val VERSION = "v1"
         private const val PLURAL = "gameservers"
+        private const val GAME_SERVER_SETS = "gameserversets"
+        private const val GAME_SERVER_SET_LABEL = "agones.dev/gameserverset"
         private const val STATIC_SERVER_ROLE = "static"
         private val BAKED_IN_PLACEHOLDERS =
             setOf(

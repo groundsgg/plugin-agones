@@ -19,11 +19,20 @@ package gg.grounds.discovery
  * threshold nobody ever reached.
  *
  * Ties break on the name so that every proxy, working from the same counts, makes the same choice.
+ *
+ * An outdated lobby — one a Fleet rollout has already replaced, see [DiscoveryService.isOutdated] —
+ * is only picked when no current lobby exists. Sending joins there would keep it allocated, and an
+ * allocated GameServer is the one thing a rollout never deletes. Falling back to it instead of
+ * picking nothing keeps a fleet that is scaled to 0 on purpose (every lobby outdated) joinable.
  */
 object LobbySelection {
 
-    data class Candidate(val name: String, val players: Int)
+    data class Candidate(val name: String, val players: Int, val outdated: Boolean = false)
 
     fun pick(candidates: List<Candidate>): String? =
-        candidates.minWithOrNull(compareBy({ it.players }, { it.name }))?.name
+        candidates
+            .filter { !it.outdated }
+            .ifEmpty { candidates }
+            .minWithOrNull(compareBy({ it.players }, { it.name }))
+            ?.name
 }

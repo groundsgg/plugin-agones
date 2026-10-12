@@ -8,10 +8,14 @@ package gg.grounds.drain
  * Environment keys:
  * - `GROUNDS_DRAIN_TRANSFER_HOST` — `host[:port]` the Minecraft transfer packet sends players to.
  *   This is the *public* name the client reconnects through (mc-router resolves it to whichever
- *   proxy is alive), not a backend address. Optional: when unset, the target is this region's own
- *   entry in `REGIONS` (the `code=host[:port]` catalogue `/region` already transfers players with,
- *   selected by `REGION`) — the same values file then works in every region. With neither set,
- *   players are never transferred, only waited for.
+ *   proxy is alive), not a backend address. Optional: when unset, the target is this proxy's own
+ *   entry in `REGIONS` (the `code=host[:port]` catalogue `/region` already transfers players with)
+ *   — the same values file then works in every region. With neither set, players are never
+ *   transferred, only waited for.
+ *
+ * The catalogue is keyed by continent (`eu=eu.geo.grnds.io:…`), not by datacentre, so the own entry
+ * is looked up by `CONTINENT` first and by `REGION` (`de-nbg1`) only as a fallback for a catalogue
+ * keyed by datacentre.
  * - `GROUNDS_DRAIN_HTTP_PORT` — loopback port the preStop hook calls. `0` disables the endpoint.
  */
 data class DrainConfig(val transferHost: String?, val transferPort: Int, val httpPort: Int) {
@@ -23,6 +27,7 @@ data class DrainConfig(val transferHost: String?, val transferPort: Int, val htt
         fun fromEnv(env: Map<String, String> = System.getenv()): DrainConfig {
             val rawTarget =
                 env["GROUNDS_DRAIN_TRANSFER_HOST"]?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: ownRegionTarget(env["REGIONS"], env["CONTINENT"])
                     ?: ownRegionTarget(env["REGIONS"], env["REGION"])
             // rsplit, because a host can contain no colon but a port always follows the last one.
             val host =
@@ -52,10 +57,10 @@ data class DrainConfig(val transferHost: String?, val transferPort: Int, val htt
         }
 
         /**
-         * This region's `host[:port]` out of the `REGIONS` catalogue. Choosing the *own* region on
-         * purpose: a drained player should land where they already are, latency-wise — the
-         * replacement proxy in the same region — not wherever a geo name happens to steer them.
-         * Null (no catalogue, no region, region not listed) leaves the drain wait-only.
+         * The `host[:port]` filed under [region] in the `REGIONS` catalogue. Choosing the *own*
+         * entry on purpose: a drained player should land where they already are, latency-wise — the
+         * replacement proxy close by — not wherever another region's name would steer them. Null
+         * (no catalogue, no code, code not listed) leaves the caller to its fallback.
          */
         internal fun ownRegionTarget(regions: String?, region: String?): String? {
             if (regions.isNullOrBlank() || region.isNullOrBlank()) return null

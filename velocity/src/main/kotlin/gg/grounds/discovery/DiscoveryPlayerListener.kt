@@ -46,14 +46,13 @@ internal fun consumeDrainTransferCookie(clearCookie: () -> Unit) {
 class DiscoveryPlayerListener(
     private val plugin: Any,
     private val proxyServer: ProxyServer,
-    private val lobbyServers: Set<String>,
-    private val serverRole: (String) -> String?,
     /**
-     * Network-wide players per backend server, or null when the network cannot be asked. Null falls
-     * back to this proxy's own view — on a single proxy that is the same number, and with several
-     * it still spreads, just per proxy rather than per network.
+     * The lobby a joining player lands on, or null when there is none — see
+     * [DiscoveryService.pickLobby]. Spreads by network-wide counts when the network can be asked,
+     * by this proxy's own view otherwise, and avoids outdated lobbies.
      */
-    private val networkCounts: () -> Map<String, Int>?,
+    private val pickLobby: () -> RegisteredServer?,
+    private val serverRole: (String) -> String?,
     private val drainTransferCookie: DrainTransferCookie = DrainTransferCookie(),
     private val sourceCookiePending: (String) -> Boolean = { false },
 ) {
@@ -63,7 +62,7 @@ class DiscoveryPlayerListener(
     fun onLogin(event: LoginEvent) {
         if (
             !shouldDenyInitialLogin(
-                findLobbyServer() != null,
+                pickLobby() != null,
                 proxyServer.allServers.any { server ->
                     serverRole(server.serverInfo.name) == STATIC_SERVER_ROLE
                 },
@@ -139,24 +138,7 @@ class DiscoveryPlayerListener(
             event.setInitialServer(preferred)
             return
         }
-        findLobbyServer()?.let(event::setInitialServer)
-    }
-
-    private fun findLobbyServer(): RegisteredServer? {
-        val lobbies = proxyServer.allServers.filter { it.serverInfo.name in lobbyServers }
-        if (lobbies.isEmpty()) return null
-
-        val counts = networkCounts()
-        val candidates =
-            lobbies.map { server ->
-                val name = server.serverInfo.name
-                LobbySelection.Candidate(
-                    name,
-                    if (counts != null) counts[name] ?: 0 else server.playersConnected.size,
-                )
-            }
-        val chosen = LobbySelection.pick(candidates) ?: return null
-        return lobbies.firstOrNull { it.serverInfo.name == chosen }
+        pickLobby()?.let(event::setInitialServer)
     }
 
     private inner class PendingCookieRequest(

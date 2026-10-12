@@ -49,4 +49,25 @@ class LobbySelectionTest {
     fun `no candidates means no lobby`() {
         assertNull(LobbySelection.pick(emptyList()))
     }
+
+    @Test
+    fun `an outdated lobby takes no joins while a current one exists`() {
+        val chosen =
+            LobbySelection.pick(
+                listOf(Candidate("lobby-old", 0, outdated = true), Candidate("lobby-new", 40))
+            )
+        assertEquals("lobby-new", chosen)
+    }
+
+    @Test
+    fun `outdated lobbies still take joins when no current lobby exists`() {
+        val chosen =
+            LobbySelection.pick(
+                listOf(
+                    Candidate("lobby-a", 9, outdated = true),
+                    Candidate("lobby-b", 2, outdated = true),
+                )
+            )
+        assertEquals("lobby-b", chosen)
+    }
 }
