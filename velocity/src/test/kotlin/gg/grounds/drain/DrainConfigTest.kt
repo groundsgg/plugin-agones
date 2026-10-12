@@ -91,6 +91,40 @@ class DrainConfigTest {
     }
 
     @Test
+    fun `the continent-keyed catalogue is matched by CONTINENT, not by the datacentre`() {
+        // The shape stage renders: REGIONS is keyed by continent, REGION names the datacentre.
+        // Matching on REGION alone found nothing, so every drain only waited and then dropped the
+        // remaining players at the deadline.
+        val cfg =
+            DrainConfig.fromEnv(
+                env =
+                    mapOf(
+                        "REGIONS" to "eu=eu.geo.grnds.io:30565,na=na.geo.grnds.io:30565",
+                        "REGION" to "de-nbg1",
+                        "CONTINENT" to "eu",
+                    )
+            )
+
+        assertEquals("eu.geo.grnds.io", cfg.transferHost)
+        assertEquals(30565, cfg.transferPort)
+    }
+
+    @Test
+    fun `REGION still matches when the continent is not in the catalogue`() {
+        val cfg =
+            DrainConfig.fromEnv(
+                env =
+                    mapOf(
+                        "REGIONS" to "de-nbg1=nbg1.stage.grnds.io",
+                        "REGION" to "de-nbg1",
+                        "CONTINENT" to "eu",
+                    )
+            )
+
+        assertEquals("nbg1.stage.grnds.io", cfg.transferHost)
+    }
+
+    @Test
     fun `http port zero disables the endpoint`() {
         val cfg = DrainConfig.fromEnv(env = mapOf("GROUNDS_DRAIN_HTTP_PORT" to "0"))
         assertEquals(0, cfg.httpPort)
