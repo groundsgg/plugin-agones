@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/groundsgg/plugin-agones/compare/v2.1.0...v2.2.0) (2026-10-13)
+
+
+### Features
+
+* **velocity:** pace drain transfers instead of sending them all at once ([#85](https://github.com/groundsgg/plugin-agones/issues/85)) ([fe9bf5b](https://github.com/groundsgg/plugin-agones/commit/fe9bf5bae41f2f06a334a7d821388e8aca9c5b23))
+
 ## [2.1.0](https://github.com/groundsgg/plugin-agones/compare/v2.0.0...v2.1.0) (2026-10-12)
 
 
