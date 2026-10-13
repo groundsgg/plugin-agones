@@ -3,37 +3,26 @@ package gg.grounds.drain
 import com.velocitypowered.api.network.ProtocolVersion
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
+import com.velocitypowered.api.scheduler.ScheduledTask
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 import net.kyori.adventure.text.Component
 import org.slf4j.Logger
-
-internal fun <T> transferAllSafely(
-    players: Iterable<T>,
-    transfer: (T) -> Unit,
-    onFailure: (T, Exception) -> Unit,
-) {
-    players.forEach { player ->
-        try {
-            transfer(player)
-        } catch (error: Exception) {
-            onFailure(player, error)
-        }
-    }
-}
 
 /**
  * Moves players off this proxy before it shuts down, instead of letting Velocity kick them.
  *
  * Started by the pod's preStop hook via [DrainHttpServer]. From that moment on:
  * - new logins are denied (they bounce back through the public name to a live proxy),
- * - players sitting in a lobby are sent a Minecraft transfer packet right away,
+ * - players sitting in a lobby are sent a Minecraft transfer packet, paced at
+ *   [DrainConfig.transfersPerSecond] (see [PacedTransfers]) so a full proxy does not reconnect all
+ *   at once,
  * - players inside a round stay untouched — Agones keeps their GameServer alive, and the moment the
  *   round sends them back towards a lobby the transfer happens *instead of* that connect,
- * - at the deadline, whoever is *not* inside a round is transferred; players inside a round are
- *   never transferred — the round either ends within the grace period (and the lobby connect
- *   becomes the transfer), or the pod's termination ends the session. A transfer would end the
- *   round just as surely, only earlier.
+ * - at the deadline, whoever is *not* inside a round is transferred (paced the same way); players
+ *   inside a round are never transferred — the round either ends within the grace period (and the
+ *   lobby connect becomes the transfer), or the pod's termination ends the session. A transfer
+ *   would end the round just as surely, only earlier.
  *
  * "Inside a round" is decided by the server's `grounds/server-type` role: only the `game` and
  * `match` roles defer the transfer. A server that discovery has no role for cannot be a protected
@@ -49,6 +38,15 @@ class DrainManager(
     private val drainTransferCookie: DrainTransferCookie = DrainTransferCookie(),
     private val transferStager: DrainTransferStager = DrainTransferStager { action ->
         proxy.scheduler.buildTask(plugin, Runnable(action)).delay(1, TimeUnit.SECONDS).schedule()
+    },
+    private val ticker: DrainTicker = DrainTicker { tick ->
+        var task: ScheduledTask? = null
+        task =
+            proxy.scheduler
+                .buildTask(plugin, Runnable { if (tick()) task?.cancel() })
+                .delay(1, TimeUnit.SECONDS)
+                .repeat(1, TimeUnit.SECONDS)
+                .schedule()
     },
 ) {
     @Volatile
@@ -73,17 +71,7 @@ class DrainManager(
             .buildTask(plugin, Runnable { onDeadline() })
             .delay(deadlineSeconds, TimeUnit.SECONDS)
             .schedule()
-        transferAllSafely(
-            proxy.allPlayers.filter { !shouldDefer(roleOf(it), lobbyValue) },
-            { player -> transferOut(player, force = false) },
-            { player, error ->
-                logger.warn(
-                    "Failed to transfer draining player {}; leaving for deadline",
-                    player.username,
-                    error,
-                )
-            },
-        )
+        pace(proxy.allPlayers.filter { !shouldDefer(roleOf(it), lobbyValue) }, force = false)
         return true
     }
 
@@ -106,13 +94,7 @@ class DrainManager(
                 "Drain deadline reached; transferring {} players not inside a round",
                 drainable.size,
             )
-            transferAllSafely(
-                drainable,
-                { player -> transferOut(player, force = true) },
-                { player, error ->
-                    logger.warn("Failed to transfer draining player {}", player.username, error)
-                },
-            )
+            pace(drainable, force = true)
         }
         if (inRound.isNotEmpty()) {
             logger.warn(
@@ -121,6 +103,30 @@ class DrainManager(
                 inRound.size,
             )
         }
+    }
+
+    /**
+     * Transfers [players] at [DrainConfig.transfersPerSecond]: the first batch now, the rest one
+     * batch a second. Whoever left or walked into a round while queued is skipped.
+     */
+    private fun pace(players: List<Player>, force: Boolean) {
+        val paced =
+            PacedTransfers(
+                players,
+                config.transfersPerSecond,
+                stillDue = { it.isActive && !shouldDefer(roleOf(it), lobbyValue) },
+                transfer = { transferOut(it, force) },
+                onFailure = { player, error ->
+                    logger.warn("Failed to transfer draining player {}", player.username, error)
+                },
+            )
+        if (paced.tick()) return
+        logger.info(
+            "Transferring the remaining {} players at {}/s",
+            paced.remaining,
+            config.transfersPerSecond,
+        )
+        ticker.everySecondUntilDone(paced::tick)
     }
 
     /**
