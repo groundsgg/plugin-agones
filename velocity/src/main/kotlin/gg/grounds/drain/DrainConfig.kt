@@ -17,12 +17,20 @@ package gg.grounds.drain
  * is looked up by `CONTINENT` first and by `REGION` (`de-nbg1`) only as a fallback for a catalogue
  * keyed by datacentre.
  * - `GROUNDS_DRAIN_HTTP_PORT` — loopback port the preStop hook calls. `0` disables the endpoint.
+ * - `GROUNDS_DRAIN_TRANSFERS_PER_SECOND` — how many players a drain transfers per second (default
+ *   20). A full proxy then reconnects over seconds instead of in one burst of logins.
  */
-data class DrainConfig(val transferHost: String?, val transferPort: Int, val httpPort: Int) {
+data class DrainConfig(
+    val transferHost: String?,
+    val transferPort: Int,
+    val httpPort: Int,
+    val transfersPerSecond: Int = DEFAULT_TRANSFERS_PER_SECOND,
+) {
 
     companion object {
         const val DEFAULT_TRANSFER_PORT = 25565
         const val DEFAULT_HTTP_PORT = 8085
+        const val DEFAULT_TRANSFERS_PER_SECOND = 20
 
         fun fromEnv(env: Map<String, String> = System.getenv()): DrainConfig {
             val rawTarget =
@@ -53,7 +61,18 @@ data class DrainConfig(val transferHost: String?, val transferPort: Int, val htt
                             )
                     } ?: DEFAULT_HTTP_PORT
 
-            return DrainConfig(host, port, httpPort)
+            val transfersPerSecond =
+                env["GROUNDS_DRAIN_TRANSFERS_PER_SECOND"]
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let {
+                        it.toIntOrNull()?.takeIf { parsed -> parsed >= 1 }
+                            ?: throw IllegalArgumentException(
+                                "GROUNDS_DRAIN_TRANSFERS_PER_SECOND '$it' must be a whole number ≥ 1"
+                            )
+                    } ?: DEFAULT_TRANSFERS_PER_SECOND
+
+            return DrainConfig(host, port, httpPort, transfersPerSecond)
         }
 
         /**
