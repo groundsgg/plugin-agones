@@ -4,6 +4,7 @@ dependencies {
     implementation(platform("gg.grounds:grounds-dependencies:0.1.0"))
 
     implementation(project(":common"))
+    implementation("gg.grounds:library-i18n:0.3.0")
     implementation("io.kubernetes:client-java")
 
     // Never shaded: the ProxyServiceRegistry we read from must be the very class plugin-proxy

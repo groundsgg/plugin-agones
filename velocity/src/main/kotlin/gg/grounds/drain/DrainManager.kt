@@ -4,9 +4,11 @@ import com.velocitypowered.api.network.ProtocolVersion
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.scheduler.ScheduledTask
+import gg.grounds.AgonesMessage
+import gg.grounds.i18n.Translations
+import gg.grounds.presentation.VelocitySystemMessages
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
-import net.kyori.adventure.text.Component
 import org.slf4j.Logger
 
 /**
@@ -48,6 +50,12 @@ class DrainManager(
                 .repeat(1, TimeUnit.SECONDS)
                 .schedule()
     },
+    private val messages: Translations =
+        Translations.forBundleWithSystemRenderer(
+            "gg.grounds.agones.messages",
+            DrainManager::class.java.classLoader,
+            systemRenderer = VelocitySystemMessages.renderer,
+        ),
 ) {
     @Volatile
     var isDraining: Boolean = false
@@ -162,7 +170,7 @@ class DrainManager(
             return true
         }
         if (force) {
-            player.disconnect(RESTART_MESSAGE)
+            player.disconnect(restartMessage(player))
             return true
         }
         return false
@@ -186,10 +194,9 @@ class DrainManager(
 
     fun isCookiePending(playerId: String): Boolean = transferStager.isPending(playerId)
 
-    companion object {
-        val RESTART_MESSAGE: Component =
-            Component.text("This proxy is restarting — please reconnect.")
+    fun restartMessage(player: Player) = messages.render(AgonesMessage.RESTART_DISCONNECT, player)
 
+    companion object {
         /**
          * A transfer is deferred only for players on a real round server. No server, an unknown
          * role, a lobby, or a static server means nothing to protect.

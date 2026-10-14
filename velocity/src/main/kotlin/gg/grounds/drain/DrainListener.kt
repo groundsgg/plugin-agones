@@ -16,7 +16,8 @@ class DrainListener(private val drainManager: DrainManager) {
     @Subscribe
     fun onLogin(event: LoginEvent) {
         if (!drainManager.isDraining) return
-        event.result = ResultedEvent.ComponentResult.denied(DrainManager.RESTART_MESSAGE)
+        event.result =
+            ResultedEvent.ComponentResult.denied(drainManager.restartMessage(event.player))
     }
 
     /**

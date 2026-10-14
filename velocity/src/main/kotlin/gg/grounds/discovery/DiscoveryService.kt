@@ -5,6 +5,8 @@ import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.api.proxy.server.ServerInfo
 import com.velocitypowered.api.scheduler.ScheduledTask
+import gg.grounds.i18n.Translations
+import gg.grounds.presentation.VelocitySystemMessages
 import gg.grounds.proxy.api.ProxyService
 import gg.grounds.proxy.api.ProxyServiceRegistry
 import io.kubernetes.client.openapi.ApiException
@@ -57,6 +59,12 @@ class DiscoveryService(
     private val drainTransferCookie: gg.grounds.drain.DrainTransferCookie =
         gg.grounds.drain.DrainTransferCookie(),
     private val sourceCookiePending: (String) -> Boolean = { false },
+    private val messages: Translations =
+        Translations.forBundleWithSystemRenderer(
+            "gg.grounds.agones.messages",
+            DiscoveryService::class.java.classLoader,
+            systemRenderer = VelocitySystemMessages.renderer,
+        ),
 ) {
     private val gson = Gson()
     private lateinit var customObjectsApi: CustomObjectsApi
@@ -173,6 +181,7 @@ class DiscoveryService(
                 this::getServerRole,
                 drainTransferCookie,
                 sourceCookiePending,
+                messages,
             ),
         )
     }

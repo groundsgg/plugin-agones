@@ -11,11 +11,13 @@ import com.velocitypowered.api.network.ProtocolVersion
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.api.scheduler.ScheduledTask
+import gg.grounds.AgonesMessage
 import gg.grounds.drain.DrainTransferCookie
+import gg.grounds.i18n.Translations
+import gg.grounds.presentation.VelocitySystemMessages
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import net.kyori.adventure.text.Component
 
 internal fun selectDrainStaticServer(
     serverName: String,
@@ -55,6 +57,12 @@ class DiscoveryPlayerListener(
     private val serverRole: (String) -> String?,
     private val drainTransferCookie: DrainTransferCookie = DrainTransferCookie(),
     private val sourceCookiePending: (String) -> Boolean = { false },
+    private val messages: Translations =
+        Translations.forBundleWithSystemRenderer(
+            "gg.grounds.agones.messages",
+            DiscoveryPlayerListener::class.java.classLoader,
+            systemRenderer = VelocitySystemMessages.renderer,
+        ),
 ) {
     private val pendingCookies = ConcurrentHashMap<UUID, PendingCookieRequest>()
 
@@ -74,9 +82,7 @@ class DiscoveryPlayerListener(
 
         event.result =
             ResultedEvent.ComponentResult.denied(
-                Component.text(
-                    "No lobby servers are currently available. Please try again in a moment."
-                )
+                messages.render(AgonesMessage.NO_LOBBY_AVAILABLE, event.player)
             )
     }
 
