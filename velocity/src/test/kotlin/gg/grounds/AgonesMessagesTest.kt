@@ -2,6 +2,7 @@ package gg.grounds
 
 import gg.grounds.i18n.BundleCheck
 import gg.grounds.i18n.SystemCategory
+import gg.grounds.i18n.SystemLevel
 import gg.grounds.i18n.Translations
 import java.util.Locale
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
@@ -29,7 +30,8 @@ class AgonesMessagesTest {
             "<red>lobby-1</red> [lobby] 127.0.0.1:25565 (3 players)",
             plain.serialize(rendered),
         )
-        assertEquals(SystemCategory.INFO, AgonesMessage.SERVER_LINE.category)
+        assertEquals(SystemCategory.GENERAL, AgonesMessage.SERVER_LINE.category)
+        assertEquals(SystemLevel.INFO, AgonesMessage.SERVER_LINE.level)
     }
 
     @Test
@@ -40,7 +42,8 @@ class AgonesMessagesTest {
             "Dieser Proxy wird neu gestartet — bitte verbinde dich erneut.",
             plain.serialize(rendered),
         )
-        assertEquals(SystemCategory.WARNING, AgonesMessage.RESTART_DISCONNECT.category)
+        assertEquals(SystemCategory.GENERAL, AgonesMessage.RESTART_DISCONNECT.category)
+        assertEquals(SystemLevel.WARNING, AgonesMessage.RESTART_DISCONNECT.level)
     }
 
     @Test
@@ -51,7 +54,8 @@ class AgonesMessagesTest {
             "Derzeit sind keine Lobby-Server verfügbar. Bitte versuche es gleich noch einmal.",
             plain.serialize(rendered),
         )
-        assertEquals(SystemCategory.ERROR, AgonesMessage.NO_LOBBY_AVAILABLE.category)
+        assertEquals(SystemCategory.GENERAL, AgonesMessage.NO_LOBBY_AVAILABLE.category)
+        assertEquals(SystemLevel.ERROR, AgonesMessage.NO_LOBBY_AVAILABLE.level)
     }
 
     @Test
