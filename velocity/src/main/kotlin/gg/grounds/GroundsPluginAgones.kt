@@ -22,6 +22,7 @@ import gg.grounds.i18n.Translations
 import gg.grounds.presentation.VelocitySystemMessages
 import gg.grounds.proxy.api.ProxyServiceRegistry
 import gg.grounds.proxy.api.ServerDisplayQuery
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -55,7 +56,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
             )
         val discoveryConfig = DiscoveryConfig.fromEnv()
         logger.info(
-            "Loaded Agones discovery config (namespace={}, labelSelector={}, lobbyLabel={}, lobbyValue={}, runningStates={}, pollInterval={}s, addressType={}, port={})",
+            "Loaded Agones discovery config (namespace={}, labelSelector={}, lobbyLabel={}, lobbyValue={}, runningStates={}, pollInterval={}s, addressType={}, port={}, lobbyPlayerCap={})",
             discoveryConfig.namespace,
             discoveryConfig.labelSelector.ifEmpty { "<none>" },
             discoveryConfig.lobbyLabel.ifEmpty { "<none>" },
@@ -64,6 +65,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
             discoveryConfig.pollInterval.toSeconds(),
             discoveryConfig.addressType,
             discoveryConfig.port,
+            discoveryConfig.lobbyPlayerCap,
         )
 
         stateManager =
@@ -117,7 +119,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
                 { serverName ->
                     discoveryService.getServerRole(serverName) == discoveryConfig.lobbyValue
                 },
-                { exclude -> discoveryService.pickLobby(exclude) },
+                { exclude, playerId -> discoveryService.pickLobby(exclude, playerId) },
             ),
         )
         outdatedLobbyMover =
@@ -127,6 +129,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
                     logger,
                     discoveryService::lobbyCandidates,
                     { drainManager.isDraining },
+                    lobbyPlayerCap = discoveryConfig.lobbyPlayerCap,
                     messages = messages,
                 )
                 .also { it.start() }
@@ -155,6 +158,21 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
         }
         coroutineScope.cancel()
     }
+
+    /**
+     * The lobby [playerId] should go to, never [exclude], with their place reserved; null when
+     * there is none or discovery has not started.
+     *
+     * For plugin-match, which sends players back to a lobby after a match. It calls this by
+     * reflection — JDK types only — so the two plugins share one placement rule and one set of
+     * reservations without a compile-time dependency on each other.
+     */
+    fun pickLobby(playerId: UUID, exclude: String?): String? =
+        if (this::discoveryService.isInitialized) {
+            discoveryService.pickLobby(exclude, playerId)?.serverInfo?.name
+        } else {
+            null
+        }
 
     /**
      * Publishes the server display query, if there is a proxy API to publish it into.

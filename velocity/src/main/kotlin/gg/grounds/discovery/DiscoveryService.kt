@@ -15,6 +15,7 @@ import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.apis.CustomObjectsApi
 import io.kubernetes.client.util.Config
 import java.net.InetSocketAddress
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import org.slf4j.Logger
@@ -80,6 +81,7 @@ class DiscoveryService(
     private val staticServerNames =
         config.staticServers.mapTo(mutableSetOf()) { canonicalServerName(it.name) }
     @Volatile private var countsSnapshot: Pair<Long, Map<String, Int>?>? = null
+    private val placement = LobbyPlacement(config.lobbyPlayerCap)
 
     fun start() {
         unregisterBakedInPlaceholders()
@@ -109,8 +111,29 @@ class DiscoveryService(
         owningGameServerSets[canonicalServerName(serverName)]?.let { it in retiredGameServerSets }
             ?: false
 
-    /** Every registered lobby, with its player count and whether it is outdated. */
-    fun lobbyCandidates(): List<LobbySelection.Candidate> {
+    /**
+     * Every registered lobby, with its player count and whether it is outdated. The count includes
+     * the players this proxy is still sending there; see [LobbyPlacement].
+     */
+    fun lobbyCandidates(): List<LobbySelection.Candidate> =
+        placement.withReservations(observedLobbies())
+
+    /**
+     * The lobby [playerId] should be sent to, never [exclude]; see [LobbySelection.pick]. With a
+     * [playerId] the place is reserved until they arrive; without one this only asks.
+     */
+    fun pickLobby(exclude: String? = null, playerId: UUID? = null): RegisteredServer? {
+        val chosen = placement.place(observedLobbies(), playerId, exclude) ?: return null
+        return proxyServer.getServer(chosen).orElse(null)
+    }
+
+    /**
+     * Every registered lobby with the players already on it. The network count says how many are on
+     * it across every proxy, but only once their sessions are written and the cache has refreshed;
+     * this proxy's own `playersConnected` is exact the moment a connection completes. The larger of
+     * the two is the better answer for both — a lag in either only ever hides players.
+     */
+    private fun observedLobbies(): List<LobbySelection.Candidate> {
         val lobbies = proxyServer.allServers.filter { it.serverInfo.name in lobbyServers }
         if (lobbies.isEmpty()) return emptyList()
         val counts = networkCountsCached()
@@ -118,20 +141,10 @@ class DiscoveryService(
             val name = server.serverInfo.name
             LobbySelection.Candidate(
                 name,
-                if (counts != null) counts[name] ?: 0 else server.playersConnected.size,
+                maxOf(counts?.get(name) ?: 0, server.playersConnected.size),
                 isOutdated(name),
             )
         }
-    }
-
-    /** The lobby a player should be sent to, never [exclude]; see [LobbySelection.pick]. */
-    fun pickLobby(exclude: String? = null): RegisteredServer? {
-        val candidates =
-            lobbyCandidates().filter {
-                exclude == null || canonicalServerName(it.name) != canonicalServerName(exclude)
-            }
-        val chosen = LobbySelection.pick(candidates) ?: return null
-        return proxyServer.getServer(chosen).orElse(null)
     }
 
     private fun unregisterBakedInPlaceholders() {
@@ -172,12 +185,13 @@ class DiscoveryService(
     }
 
     private fun registerListeners() {
+        proxyServer.eventManager.register(plugin, placement.Listener())
         proxyServer.eventManager.register(
             plugin,
             DiscoveryPlayerListener(
                 plugin,
                 proxyServer,
-                { pickLobby() },
+                { playerId -> pickLobby(playerId = playerId) },
                 this::getServerRole,
                 drainTransferCookie,
                 sourceCookiePending,

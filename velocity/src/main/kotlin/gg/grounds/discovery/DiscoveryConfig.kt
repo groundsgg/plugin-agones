@@ -24,6 +24,8 @@ internal fun canonicalServerName(name: String): String = name.lowercase(Locale.R
  * - `GROUNDS_AGONES_PORT` — TCP port to dial on the discovered GameServer.
  * - `GROUNDS_STATIC_SERVERS` — Comma-separated `name=host:port` Velocity backends that are
  *   registered without Agones discovery.
+ * - `GROUNDS_LOBBY_PLAYER_CAP` — Players a lobby is filled up to before joins go to the next one
+ *   (default 100). Not `GROUNDS_AGONES_`-prefixed: plugin-match reads the same variable.
  */
 data class StaticServer(val name: String, val host: String, val port: Int)
 
@@ -37,6 +39,7 @@ data class DiscoveryConfig(
     val addressType: String,
     val port: Int,
     val staticServers: List<StaticServer>,
+    val lobbyPlayerCap: Int = LobbySelection.DEFAULT_PLAYER_CAP,
 ) {
     companion object {
         const val DEFAULT_NAMESPACE = "games"
@@ -68,6 +71,9 @@ data class DiscoveryConfig(
                 addressType = env["GROUNDS_AGONES_ADDRESS_TYPE"] ?: DEFAULT_ADDRESS_TYPE,
                 port = env["GROUNDS_AGONES_PORT"]?.toIntOrNull() ?: DEFAULT_PORT,
                 staticServers = parseStaticServers(env["GROUNDS_STATIC_SERVERS"]),
+                lobbyPlayerCap =
+                    env["GROUNDS_LOBBY_PLAYER_CAP"]?.trim()?.toIntOrNull()?.takeIf { it > 0 }
+                        ?: LobbySelection.DEFAULT_PLAYER_CAP,
             )
 
         private val DURATION_PATTERN = Regex("""^(\d+)\s*(s|m|h)$""")

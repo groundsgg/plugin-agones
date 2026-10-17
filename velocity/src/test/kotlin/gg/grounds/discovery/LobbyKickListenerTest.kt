@@ -6,6 +6,7 @@ import com.velocitypowered.api.proxy.server.RegisteredServer
 import com.velocitypowered.api.proxy.server.ServerInfo
 import java.lang.reflect.Proxy
 import java.net.InetSocketAddress
+import java.util.UUID
 import net.kyori.adventure.text.Component
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
@@ -15,12 +16,15 @@ import org.junit.jupiter.api.Test
 class LobbyKickListenerTest {
     private val oldLobby = server("lobby-old")
     private val newLobby = server("lobby-new")
+    private val playerId = UUID.randomUUID()
     private val excluded = mutableListOf<String>()
+    private val placedFor = mutableListOf<UUID>()
     private val listener =
         LobbyKickListener(
             isLobby = { it.startsWith("lobby-") },
-            pickLobby = { exclude ->
+            pickLobby = { exclude, player ->
                 excluded.add(exclude)
+                placedFor.add(player)
                 newLobby
             },
         )
@@ -34,13 +38,14 @@ class LobbyKickListenerTest {
         val result = event.result as KickedFromServerEvent.RedirectPlayer
         assertSame(newLobby, result.server)
         assertEquals(listOf("lobby-old"), excluded)
+        assertEquals(listOf(playerId), placedFor)
     }
 
     @Test
     fun `no other lobby leaves Velocity's disconnect in place`() {
         val event = kick(from = oldLobby)
 
-        LobbyKickListener({ true }, { null }).onKickedFromServer(event)
+        LobbyKickListener({ true }, { _, _ -> null }).onKickedFromServer(event)
 
         assertTrue(event.result is KickedFromServerEvent.DisconnectPlayer)
     }
@@ -81,7 +86,7 @@ class LobbyKickListenerTest {
             KickedFromServerEvent.DisconnectPlayer.create(Component.text("Server closed")),
     ) =
         KickedFromServerEvent(
-            proxy<Player>(mapOf("isActive" to active)),
+            proxy<Player>(mapOf("isActive" to active, "getUniqueId" to playerId)),
             from,
             Component.text("Server closed"),
             false,

@@ -20,6 +20,23 @@ class DiscoveryConfigTest {
         assertEquals("PodIP", cfg.addressType)
         assertEquals(25565, cfg.port)
         assertEquals(emptyList<StaticServer>(), cfg.staticServers)
+        assertEquals(100, cfg.lobbyPlayerCap)
+    }
+
+    @Test
+    fun `GROUNDS_LOBBY_PLAYER_CAP sets the cap and a nonsense value keeps the default`() {
+        assertEquals(
+            40,
+            DiscoveryConfig.fromEnv(mapOf("GROUNDS_LOBBY_PLAYER_CAP" to " 40 ")).lobbyPlayerCap,
+        )
+        assertEquals(
+            100,
+            DiscoveryConfig.fromEnv(mapOf("GROUNDS_LOBBY_PLAYER_CAP" to "0")).lobbyPlayerCap,
+        )
+        assertEquals(
+            100,
+            DiscoveryConfig.fromEnv(mapOf("GROUNDS_LOBBY_PLAYER_CAP" to "lots")).lobbyPlayerCap,
+        )
     }
 
     @Test
