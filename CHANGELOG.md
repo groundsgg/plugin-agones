@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/groundsgg/plugin-agones/compare/v3.0.0...v3.0.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **chat:** align context and message-level colors ([#91](https://github.com/groundsgg/plugin-agones/issues/91)) ([01e82a4](https://github.com/groundsgg/plugin-agones/commit/01e82a453af293bf009fa823ba9dedf00eb56870))
+
 ## [3.0.0](https://github.com/groundsgg/plugin-agones/compare/v2.3.0...v3.0.0) (2026-10-17)
 
 
