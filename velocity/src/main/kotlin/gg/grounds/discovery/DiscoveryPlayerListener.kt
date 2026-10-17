@@ -50,10 +50,10 @@ class DiscoveryPlayerListener(
     private val proxyServer: ProxyServer,
     /**
      * The lobby a joining player lands on, or null when there is none — see
-     * [DiscoveryService.pickLobby]. Spreads by network-wide counts when the network can be asked,
-     * by this proxy's own view otherwise, and avoids outdated lobbies.
+     * [DiscoveryService.pickLobby]. Fills the fullest lobby below the cap and avoids outdated
+     * lobbies. Given a player it reserves their place; given null it only asks.
      */
-    private val pickLobby: () -> RegisteredServer?,
+    private val pickLobby: (UUID?) -> RegisteredServer?,
     private val serverRole: (String) -> String?,
     private val drainTransferCookie: DrainTransferCookie = DrainTransferCookie(),
     private val sourceCookiePending: (String) -> Boolean = { false },
@@ -70,7 +70,7 @@ class DiscoveryPlayerListener(
     fun onLogin(event: LoginEvent) {
         if (
             !shouldDenyInitialLogin(
-                pickLobby() != null,
+                pickLobby(null) != null,
                 proxyServer.allServers.any { server ->
                     serverRole(server.serverInfo.name) == STATIC_SERVER_ROLE
                 },
@@ -144,7 +144,7 @@ class DiscoveryPlayerListener(
             event.setInitialServer(preferred)
             return
         }
-        pickLobby()?.let(event::setInitialServer)
+        pickLobby(event.player.uniqueId)?.let(event::setInitialServer)
     }
 
     private inner class PendingCookieRequest(

@@ -132,7 +132,7 @@ class DiscoveryServiceTest {
         service.refreshRetiredGameServerSets { throw IllegalStateException("403 Forbidden") }
 
         assertFalse(service.isOutdated("lobby-old"))
-        // Back to plain least-occupied: the empty old lobby wins again.
+        // Back to plain fullest-first: the old lobby, holding the player, wins again.
         assertEquals("lobby-old", service.pickLobby()?.serverInfo?.name)
     }
 
@@ -158,8 +158,8 @@ class DiscoveryServiceTest {
     }
 
     /**
-     * Two registered lobbies, the old one empty and the new one holding a player — so plain
-     * least-occupied would pick the old one, and only the outdated check sends joins elsewhere.
+     * Two registered lobbies, the old one holding a player and the new one empty — so plain
+     * fullest-first would pick the old one, and only the outdated check sends joins elsewhere.
      */
     private fun lobbyService(): DiscoveryService {
         val oldLobby =
@@ -170,7 +170,7 @@ class DiscoveryServiceTest {
                             "lobby-old",
                             InetSocketAddress.createUnresolved("10.0.0.1", 25565),
                         ),
-                    "getPlayersConnected" to emptyList<Player>(),
+                    "getPlayersConnected" to listOf(proxy<Player>()),
                 )
             )
         val newLobby =
@@ -181,7 +181,7 @@ class DiscoveryServiceTest {
                             "lobby-new",
                             InetSocketAddress.createUnresolved("10.0.0.2", 25565),
                         ),
-                    "getPlayersConnected" to listOf(proxy<Player>()),
+                    "getPlayersConnected" to emptyList<Player>(),
                 )
             )
         val servers = listOf(oldLobby, newLobby)

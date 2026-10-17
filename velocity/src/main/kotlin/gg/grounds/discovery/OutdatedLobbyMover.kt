@@ -15,13 +15,15 @@ import org.slf4j.Logger
  * Which players to move off outdated lobbies this tick, and where to.
  *
  * Only players standing on an outdated lobby move, at most [limit] of them, and only when a current
- * lobby exists to take them. Each move counts towards its target, so one tick spreads its players
- * the way [LobbySelection.pick] spreads joins instead of sending all of them to the same lobby.
+ * lobby exists to take them. Each move counts towards its target, so one tick fills the current
+ * lobbies the way [LobbySelection.pick] fills them with joins: the fullest one up to [cap], then
+ * the next.
  */
 internal fun <P> planOutdatedLobbyMoves(
     players: List<Pair<P, String>>,
     lobbies: List<LobbySelection.Candidate>,
     limit: Int,
+    cap: Int = LobbySelection.DEFAULT_PLAYER_CAP,
 ): List<Pair<P, String>> {
     val outdated = lobbies.filter { it.outdated }.mapTo(mutableSetOf()) { it.name }
     val counts =
@@ -32,7 +34,10 @@ internal fun <P> planOutdatedLobbyMoves(
         .take(limit)
         .map { (player, _) ->
             val target =
-                LobbySelection.pick(counts.map { LobbySelection.Candidate(it.key, it.value) })!!
+                LobbySelection.pick(
+                    counts.map { LobbySelection.Candidate(it.key, it.value) },
+                    cap,
+                )!!
             counts[target] = counts.getValue(target) + 1
             player to target
         }
@@ -56,6 +61,7 @@ class OutdatedLobbyMover(
     /** A draining proxy sends its lobby players to another proxy instead; moving them is moot. */
     private val isDraining: () -> Boolean,
     private val maxMovesPerTick: Int = DEFAULT_MAX_MOVES_PER_TICK,
+    private val lobbyPlayerCap: Int = LobbySelection.DEFAULT_PLAYER_CAP,
     private val messages: Translations =
         Translations.forBundleWithSystemRenderer(
             "gg.grounds.agones.messages",
@@ -93,7 +99,8 @@ class OutdatedLobbyMover(
                 .mapNotNull { player ->
                     player.currentServer.orElse(null)?.let { player to it.serverInfo.name }
                 }
-        for ((player, target) in planOutdatedLobbyMoves(players, lobbies, maxMovesPerTick)) {
+        for ((player, target) in
+            planOutdatedLobbyMoves(players, lobbies, maxMovesPerTick, lobbyPlayerCap)) {
             move(player, target)
         }
     }

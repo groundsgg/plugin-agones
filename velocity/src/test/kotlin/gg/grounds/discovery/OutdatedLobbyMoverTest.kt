@@ -60,7 +60,7 @@ class OutdatedLobbyMoverTest {
     }
 
     @Test
-    fun `one tick spreads its moves across the current lobbies`() {
+    fun `one tick fills the fullest current lobby up to the cap, then the next`() {
         val moves =
             planOutdatedLobbyMoves(
                 (1..6).map { "p$it" to "lobby-old" },
@@ -70,9 +70,10 @@ class OutdatedLobbyMoverTest {
                     Candidate("lobby-b", 0),
                 ),
                 limit = 10,
+                cap = 5,
             )
 
-        // 3+0 -> b, b, b, then a and b alternate: both end within one player of each other.
+        // lobby-a is the fuller one: it takes two and is at the cap, lobby-b takes the rest.
         assertEquals(
             mapOf("lobby-a" to 2, "lobby-b" to 4),
             moves.groupingBy { it.second }.eachCount(),

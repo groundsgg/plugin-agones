@@ -3,20 +3,17 @@ package gg.grounds.discovery
 /**
  * Which lobby a joining player should land on.
  *
- * Least-occupied wins. Joins spread across the lobbies instead of filling one and then the next, so
- * no single instance holds the whole region: a lobby restart takes a share of the players with it
- * rather than all of them.
+ * Fullest first, below a per-lobby cap. A network of 50 players then feels like one lobby of 50
+ * rather than fifty lobbies of one, and only when every lobby is at the cap does a join go to an
+ * emptier one. The fleet keeps one empty lobby Ready on top of the allocated ones, so "an emptier
+ * one" is normally that spare: it takes the overflow, fills, and the autoscaler starts the next.
  *
- * This also gives a newly autoscaled lobby what it needs without any special case. A fresh lobby is
- * empty, so it is the least occupied, so it takes joins until it has caught up with the others —
- * priority filling falls out of the same rule that does the spreading.
+ * This replaces least-occupied-first. Together with that Ready buffer it put every player in a
+ * lobby of their own: the spare was always the least occupied, the first join allocated it, the
+ * autoscaler started another empty one, and the next join took that.
  *
- * This replaces a fullest-first-below-a-cap policy. That one existed so a network of 50 would feel
- * like one lobby of 50 rather than five of ten, which is a real concern — but it meant that in
- * practice every player in a region sat in one process, and measured on stage the lobby was never
- * the reason to split: 228 players cost 0.29 cores and a 2 ms average tick against a 50 ms budget.
- * The reason to split is blast radius, and that argues for spreading always rather than for a
- * threshold nobody ever reached.
+ * When every lobby is at the cap the least occupied one takes the join, so the overflow spreads
+ * instead of piling onto one lobby while the spare is still starting.
  *
  * Ties break on the name so that every proxy, working from the same counts, makes the same choice.
  *
@@ -27,12 +24,19 @@ package gg.grounds.discovery
  */
 object LobbySelection {
 
+    const val DEFAULT_PLAYER_CAP = 100
+
     data class Candidate(val name: String, val players: Int, val outdated: Boolean = false)
 
-    fun pick(candidates: List<Candidate>): String? =
-        candidates
-            .filter { !it.outdated }
-            .ifEmpty { candidates }
-            .minWithOrNull(compareBy({ it.players }, { it.name }))
-            ?.name
+    fun pick(candidates: List<Candidate>, cap: Int = DEFAULT_PLAYER_CAP): String? {
+        val pool = candidates.filter { !it.outdated }.ifEmpty { candidates }
+        val withRoom = pool.filter { it.players < cap }
+        val chosen =
+            if (withRoom.isNotEmpty()) {
+                withRoom.minWithOrNull(compareBy({ -it.players }, { it.name }))
+            } else {
+                pool.minWithOrNull(compareBy({ it.players }, { it.name }))
+            }
+        return chosen?.name
+    }
 }

@@ -3,6 +3,7 @@ package gg.grounds.discovery
 import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.player.KickedFromServerEvent
 import com.velocitypowered.api.proxy.server.RegisteredServer
+import java.util.UUID
 
 /**
  * A lobby that goes away takes its players to another lobby instead of off the network.
@@ -14,8 +15,11 @@ import com.velocitypowered.api.proxy.server.RegisteredServer
  */
 class LobbyKickListener(
     private val isLobby: (String) -> Boolean,
-    /** Another lobby to send the player to, never the one named; null when there is none. */
-    private val pickLobby: (exclude: String) -> RegisteredServer?,
+    /**
+     * Another lobby to send the player to, never the one named; null when there is none. Picked
+     * like a join — the fullest lobby with room — and reserved for the player.
+     */
+    private val pickLobby: (exclude: String, playerId: UUID) -> RegisteredServer?,
 ) {
 
     @Subscribe
@@ -24,7 +28,7 @@ class LobbyKickListener(
         if (event.result !is KickedFromServerEvent.DisconnectPlayer) return
         val kickedFrom = event.server.serverInfo.name
         if (!isLobby(kickedFrom)) return
-        val target = pickLobby(kickedFrom) ?: return
+        val target = pickLobby(kickedFrom, event.player.uniqueId) ?: return
         event.result =
             KickedFromServerEvent.RedirectPlayer.create(target, event.serverKickReason.orElse(null))
     }
