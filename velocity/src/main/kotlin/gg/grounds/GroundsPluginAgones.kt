@@ -161,15 +161,17 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
 
     /**
      * The lobby [playerId] should go to, never [exclude], with their place reserved; null when
-     * there is none or discovery has not started.
+     * there is none or discovery has not started. [preferred] — the lobby they queued from — is
+     * taken while it is current and below the cap, reservations included; otherwise the fill rule
+     * decides.
      *
      * For plugin-match, which sends players back to a lobby after a match. It calls this by
      * reflection — JDK types only — so the two plugins share one placement rule and one set of
      * reservations without a compile-time dependency on each other.
      */
-    fun pickLobby(playerId: UUID, exclude: String?): String? =
+    fun pickLobby(playerId: UUID, exclude: String?, preferred: String?): String? =
         if (this::discoveryService.isInitialized) {
-            discoveryService.pickLobby(exclude, playerId)?.serverInfo?.name
+            discoveryService.pickLobby(exclude, playerId, preferred)?.serverInfo?.name
         } else {
             null
         }

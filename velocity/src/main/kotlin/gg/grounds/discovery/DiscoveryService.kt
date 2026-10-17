@@ -120,10 +120,15 @@ class DiscoveryService(
 
     /**
      * The lobby [playerId] should be sent to, never [exclude]; see [LobbySelection.pick]. With a
-     * [playerId] the place is reserved until they arrive; without one this only asks.
+     * [playerId] the place is reserved until they arrive; without one this only asks. [preferred]
+     * is taken while it has room; see [LobbyPlacement.place].
      */
-    fun pickLobby(exclude: String? = null, playerId: UUID? = null): RegisteredServer? {
-        val chosen = placement.place(observedLobbies(), playerId, exclude) ?: return null
+    fun pickLobby(
+        exclude: String? = null,
+        playerId: UUID? = null,
+        preferred: String? = null,
+    ): RegisteredServer? {
+        val chosen = placement.place(observedLobbies(), playerId, exclude, preferred) ?: return null
         return proxyServer.getServer(chosen).orElse(null)
     }
 

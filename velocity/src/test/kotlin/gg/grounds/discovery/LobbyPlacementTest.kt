@@ -107,4 +107,49 @@ class LobbyPlacementTest {
         assertEquals("lobby-a", placement.place(observed))
         assertEquals(10, placement.withReservations(observed).single().players)
     }
+
+    @Test
+    fun `the preferred lobby wins while it has room`() {
+        val placement = LobbyPlacement(cap = 100)
+        val observed = listOf(Candidate("lobby-home", 10), Candidate("lobby-full", 90))
+
+        assertEquals(
+            "lobby-home",
+            placement.place(observed, UUID.randomUUID(), preferred = "lobby-home"),
+        )
+        assertEquals(11, placement.withReservations(observed).first().players)
+    }
+
+    @Test
+    fun `a preferred lobby at the cap counting reservations falls back to the fill rule`() {
+        val placement = LobbyPlacement(cap = 100)
+        val observed = listOf(Candidate("lobby-home", 99), Candidate("lobby-b", 40))
+
+        assertEquals(
+            "lobby-home",
+            placement.place(observed, UUID.randomUUID(), preferred = "lobby-home"),
+        )
+        // The reservation above fills it: the next returning player goes to the fullest with room.
+        assertEquals(
+            "lobby-b",
+            placement.place(observed, UUID.randomUUID(), preferred = "lobby-home"),
+        )
+    }
+
+    @Test
+    fun `a preferred lobby that is gone, outdated or excluded is ignored`() {
+        val placement = LobbyPlacement(cap = 100)
+        val observed = listOf(Candidate("lobby-old", 5, outdated = true), Candidate("lobby-b", 40))
+
+        assertEquals("lobby-b", placement.place(observed, preferred = "lobby-gone"))
+        assertEquals("lobby-b", placement.place(observed, preferred = "lobby-old"))
+        assertEquals(
+            "lobby-b",
+            placement.place(
+                listOf(Candidate("lobby-home", 5), Candidate("lobby-b", 40)),
+                exclude = "lobby-home",
+                preferred = "lobby-home",
+            ),
+        )
+    }
 }

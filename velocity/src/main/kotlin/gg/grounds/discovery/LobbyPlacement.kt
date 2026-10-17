@@ -37,12 +37,17 @@ class LobbyPlacement(
      * The lobby for [playerId], never [exclude]; null when there is none. [observed] are the
      * lobbies with the players already counted on them. A null [playerId] only asks — nothing is
      * reserved.
+     *
+     * [preferred] wins over the fill rule while it is a current lobby below the cap, reservations
+     * included — the lobby a player queued from, for a return after their match. Gone, outdated or
+     * full, it is ignored and the fill rule decides.
      */
     @Synchronized
     fun place(
         observed: List<LobbySelection.Candidate>,
         playerId: UUID? = null,
         exclude: String? = null,
+        preferred: String? = null,
     ): String? {
         // A player placed again (kicked before arriving, say) must not count against themselves.
         if (playerId != null) reservations.remove(playerId)
@@ -50,7 +55,15 @@ class LobbyPlacement(
             withReservations(observed).filter {
                 exclude == null || canonicalServerName(it.name) != canonicalServerName(exclude)
             }
-        val chosen = LobbySelection.pick(candidates, cap) ?: return null
+        val home =
+            preferred?.let { name ->
+                candidates.firstOrNull {
+                    canonicalServerName(it.name) == canonicalServerName(name) &&
+                        !it.outdated &&
+                        it.players < cap
+                }
+            }
+        val chosen = home?.name ?: LobbySelection.pick(candidates, cap) ?: return null
         if (playerId != null) {
             reservations[playerId] =
                 Reservation(canonicalServerName(chosen), clock() + ttl.toNanos())

@@ -50,7 +50,9 @@ This only registers the backend with Velocity; configuring the backend itself fo
 forwarding remains a separate deployment concern.
 
 Joins, lobby kicks and plugin-match's returns from a match all go to the fullest lobby that is
-below `GROUNDS_LOBBY_PLAYER_CAP`, and to an emptier one only when every lobby is at the cap.
+below `GROUNDS_LOBBY_PLAYER_CAP`, and to an emptier one only when every lobby is at the cap. A
+return goes back to the lobby the player queued from first, while that lobby is current and below
+the cap.
 Counts are the larger of the network-wide count (plugin-proxy) and this proxy's own, plus the
 players this proxy has sent but who have not arrived yet, so a burst of joins on one proxy cannot
 overfill a lobby. Across proxies the cap is soft by the couple of seconds the network count lags.
