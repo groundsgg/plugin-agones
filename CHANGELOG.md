@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/groundsgg/plugin-agones/compare/v2.3.0...v3.0.0) (2026-10-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **velocity:** lobbies fill fullest-first instead of evenly.
+
+### Features
+
+* **velocity:** fill the fullest lobby below a 100-player cap ([#89](https://github.com/groundsgg/plugin-agones/issues/89)) ([0f3931f](https://github.com/groundsgg/plugin-agones/commit/0f3931fd5261edb667f7e8ec6fc052343186d974))
+
 ## [2.3.0](https://github.com/groundsgg/plugin-agones/compare/v2.2.0...v2.3.0) (2026-10-17)
 
 
