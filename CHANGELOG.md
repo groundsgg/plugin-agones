@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/groundsgg/plugin-agones/compare/v3.0.1...v3.1.0) (2026-10-17)
+
+
+### Features
+
+* **catalog:** publish versioned permission manifest ([#93](https://github.com/groundsgg/plugin-agones/issues/93)) ([3d5ec4d](https://github.com/groundsgg/plugin-agones/commit/3d5ec4d1cb94a4bcfcab86c05f772cf97e2a68bb))
+
 ## [3.0.1](https://github.com/groundsgg/plugin-agones/compare/v3.0.0...v3.0.1) (2026-10-17)
 
 
