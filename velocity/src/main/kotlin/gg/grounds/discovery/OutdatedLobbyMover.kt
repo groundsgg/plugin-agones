@@ -3,10 +3,12 @@ package gg.grounds.discovery
 import com.velocitypowered.api.proxy.Player
 import com.velocitypowered.api.proxy.ProxyServer
 import com.velocitypowered.api.scheduler.ScheduledTask
+import gg.grounds.AgonesMessage
+import gg.grounds.i18n.Translations
+import gg.grounds.presentation.VelocitySystemMessages
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import net.kyori.adventure.text.Component
 import org.slf4j.Logger
 
 /**
@@ -54,6 +56,12 @@ class OutdatedLobbyMover(
     /** A draining proxy sends its lobby players to another proxy instead; moving them is moot. */
     private val isDraining: () -> Boolean,
     private val maxMovesPerTick: Int = DEFAULT_MAX_MOVES_PER_TICK,
+    private val messages: Translations =
+        Translations.forBundleWithSystemRenderer(
+            "gg.grounds.agones.messages",
+            OutdatedLobbyMover::class.java.classLoader,
+            systemRenderer = VelocitySystemMessages.renderer,
+        ),
 ) {
     private val inFlight: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
     private var task: ScheduledTask? = null
@@ -100,7 +108,7 @@ class OutdatedLobbyMover(
             from,
             targetName,
         )
-        player.sendMessage(MOVE_MESSAGE)
+        messages.send(player, AgonesMessage.MOVING_TO_UPDATED_LOBBY)
         // connect(), not fireAndForget(): the future says when the move is over, and a failed move
         // leaves the player where they are — on a lobby that still works — to be retried next tick.
         player.createConnectionRequest(target).connect().whenComplete { result, error ->
@@ -119,6 +127,5 @@ class OutdatedLobbyMover(
     companion object {
         const val DEFAULT_MAX_MOVES_PER_TICK = 10
         private const val TICK_SECONDS = 5L
-        val MOVE_MESSAGE: Component = Component.text("Moving you to an updated lobby…")
     }
 }

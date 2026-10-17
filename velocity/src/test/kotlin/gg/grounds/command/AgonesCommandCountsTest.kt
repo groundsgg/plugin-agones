@@ -9,6 +9,7 @@ import gg.grounds.proxy.api.NetworkPlayerCounts
 import gg.grounds.proxy.api.ProxyService
 import java.lang.reflect.Proxy
 import java.net.InetSocketAddress
+import java.util.Optional
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -125,6 +126,7 @@ class AgonesCommandCountsTest {
                 response != null -> response
                 method.returnType == Boolean::class.javaPrimitiveType -> false
                 method.returnType == Int::class.javaPrimitiveType -> 0
+                method.returnType == Optional::class.java -> Optional.empty<Any>()
                 method.returnType == Void.TYPE -> null
                 else -> null
             }

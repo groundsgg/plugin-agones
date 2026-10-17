@@ -18,6 +18,8 @@ import gg.grounds.drain.DrainListener
 import gg.grounds.drain.DrainManager
 import gg.grounds.drain.DrainTransferCookie
 import gg.grounds.gameserver.GameServerStateManager
+import gg.grounds.i18n.Translations
+import gg.grounds.presentation.VelocitySystemMessages
 import gg.grounds.proxy.api.ProxyServiceRegistry
 import gg.grounds.proxy.api.ServerDisplayQuery
 import kotlinx.coroutines.CoroutineScope
@@ -45,6 +47,12 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
 
     @Subscribe
     fun onProxyInitialize(event: ProxyInitializeEvent) {
+        val messages =
+            Translations.forBundleWithSystemRenderer(
+                "gg.grounds.agones.messages",
+                javaClass.classLoader,
+                systemRenderer = VelocitySystemMessages.renderer,
+            )
         val discoveryConfig = DiscoveryConfig.fromEnv()
         logger.info(
             "Loaded Agones discovery config (namespace={}, labelSelector={}, lobbyLabel={}, lobbyValue={}, runningStates={}, pollInterval={}s, addressType={}, port={})",
@@ -70,6 +78,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
                     discoveryConfig,
                     drainTransferCookie = drainCookie,
                     sourceCookiePending = { playerId -> drainManager.isCookiePending(playerId) },
+                    messages = messages,
                 )
                 .also { it.start() }
 
@@ -82,7 +91,11 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
 
         proxyServer.commandManager.register(
             proxyServer.commandManager.metaBuilder("agones").build(),
-            AgonesCommand(proxyServer, { serverName -> discoveryService.getServerRole(serverName) }),
+            AgonesCommand(
+                proxyServer,
+                { serverName -> discoveryService.getServerRole(serverName) },
+                messages = messages,
+            ),
         )
 
         val drainConfig = DrainConfig.fromEnv()
@@ -95,6 +108,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
                 { serverName -> discoveryService.getServerRole(serverName) },
                 discoveryConfig.lobbyValue,
                 drainCookie,
+                messages = messages,
             )
         proxyServer.eventManager.register(this, DrainListener(drainManager))
         proxyServer.eventManager.register(
@@ -113,6 +127,7 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
                     logger,
                     discoveryService::lobbyCandidates,
                     { drainManager.isDraining },
+                    messages = messages,
                 )
                 .also { it.start() }
         drainHttpServer =

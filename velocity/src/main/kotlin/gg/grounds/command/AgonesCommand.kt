@@ -3,10 +3,13 @@ package gg.grounds.command
 import com.velocitypowered.api.command.SimpleCommand
 import com.velocitypowered.api.proxy.ConsoleCommandSource
 import com.velocitypowered.api.proxy.ProxyServer
+import gg.grounds.AgonesMessage
+import gg.grounds.i18n.Palette
+import gg.grounds.i18n.Translations
+import gg.grounds.presentation.VelocitySystemMessages
 import gg.grounds.proxy.api.ProxyService
 import gg.grounds.proxy.api.ProxyServiceRegistry
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 
 class AgonesCommand(
     private val proxyServer: ProxyServer,
@@ -19,6 +22,12 @@ class AgonesCommand(
     private val proxyService: () -> ProxyService? = {
         ProxyServiceRegistry.get(ProxyService::class.java)
     },
+    private val messages: Translations =
+        Translations.forBundleWithSystemRenderer(
+            "gg.grounds.agones.messages",
+            AgonesCommand::class.java.classLoader,
+            systemRenderer = VelocitySystemMessages.renderer,
+        ),
 ) : SimpleCommand {
 
     override fun execute(invocation: SimpleCommand.Invocation) {
@@ -26,7 +35,7 @@ class AgonesCommand(
         val servers = proxyServer.allServers
 
         if (servers.isEmpty()) {
-            source.sendMessage(Component.text("No servers registered.", NamedTextColor.RED))
+            messages.send(source, AgonesMessage.NO_SERVERS)
             return
         }
 
@@ -36,7 +45,7 @@ class AgonesCommand(
         // printing this proxy's numbers as if they were everyone's.
         val counts = proxyService()?.getNetworkPlayerCounts()
 
-        source.sendMessage(Component.text("--- Agones Servers ---", NamedTextColor.GOLD))
+        messages.send(source, AgonesMessage.SERVER_HEADER)
 
         for (server in servers) {
             val name = server.serverInfo.name
@@ -45,35 +54,31 @@ class AgonesCommand(
             val type = getServerRole(name) ?: "unknown"
             val typeColor =
                 when (type) {
-                    "lobby" -> NamedTextColor.GREEN
-                    "game" -> NamedTextColor.AQUA
-                    "match" -> NamedTextColor.LIGHT_PURPLE
-                    else -> NamedTextColor.GRAY
+                    "lobby" -> Palette.SUCCESS
+                    "game" -> Palette.ACCENT
+                    "match" -> Palette.INFO
+                    else -> Palette.TEXT_MUTED
                 }
-
-            val line =
-                Component.text()
-                    .append(Component.text(" $name", NamedTextColor.WHITE))
-                    .append(Component.text(" [$type]", typeColor))
-                    .append(Component.text(" $address", NamedTextColor.GRAY))
-                    .append(Component.text(" ($playerCount players)", NamedTextColor.YELLOW))
-                    .build()
-
-            source.sendMessage(line)
+            messages.send(
+                source,
+                AgonesMessage.SERVER_LINE,
+                "name" to Component.text(name, Palette.TEXT),
+                "type" to Component.text(type, typeColor),
+                "address" to Component.text(address.toString(), Palette.TEXT_MUTED),
+                "players" to playerCount,
+            )
         }
 
         val total = counts?.total ?: proxyServer.playerCount
-        source.sendMessage(
-            Component.text("Total: ${servers.size} servers, $total players", NamedTextColor.GOLD)
+        messages.send(
+            source,
+            AgonesMessage.SERVER_TOTAL,
+            "servers" to servers.size,
+            "players" to total,
         )
 
         if (counts == null) {
-            source.sendMessage(
-                Component.text(
-                    "Player counts are for this proxy only — the presence service is unreachable.",
-                    NamedTextColor.RED,
-                )
-            )
+            messages.send(source, AgonesMessage.LOCAL_PLAYER_COUNTS)
         }
     }
 
