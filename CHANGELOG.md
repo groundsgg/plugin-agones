@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/groundsgg/plugin-agones/compare/v2.2.0...v2.3.0) (2026-10-17)
+
+
+### Features
+
+* **chat:** unify localized agones messages ([#87](https://github.com/groundsgg/plugin-agones/issues/87)) ([f811f84](https://github.com/groundsgg/plugin-agones/commit/f811f84d1fe2c1f74b85556cfa6dca316ffc498a))
+
 ## [2.2.0](https://github.com/groundsgg/plugin-agones/compare/v2.1.0...v2.2.0) (2026-10-13)
 
 
