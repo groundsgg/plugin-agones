@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/groundsgg/plugin-agones/compare/v3.1.0...v3.2.0) (2026-10-23)
+
+
+### Features
+
+* let a self-managed server retire itself ([#95](https://github.com/groundsgg/plugin-agones/issues/95)) ([4fcfb46](https://github.com/groundsgg/plugin-agones/commit/4fcfb46a7bec58ae4c11946f115fba5109310357))
+
 ## [3.1.0](https://github.com/groundsgg/plugin-agones/compare/v3.0.1...v3.1.0) (2026-10-17)
 
 
