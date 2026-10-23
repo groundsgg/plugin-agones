@@ -5,6 +5,7 @@ import gg.grounds.agones.AgonesLogger
 import gg.grounds.agones.AgonesRestClient
 import gg.grounds.agones.GameServerOwnership
 import gg.grounds.listener.PlayerListener
+import gg.grounds.modules.register
 import gg.grounds.runtime.GroundsModule
 import gg.grounds.runtime.GroundsServerContext
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +41,9 @@ class GroundsPluginAgones : GroundsModule {
 
     override fun install(ctx: GroundsServerContext) {
         install()
+        if (!ownership.isMatchmakerManaged) {
+            ctx.services.register<GameServerRetirement>(GameServerRetirement(::retire))
+        }
     }
 
     override fun start() {
@@ -106,6 +110,13 @@ class GroundsPluginAgones : GroundsModule {
         // not ours.
         playerEventNode =
             if (ownership.isMatchmakerManaged) null else registerListeners(agonesHelper)
+    }
+
+    private fun retire() {
+        val agonesHelper = agonesHelper ?: return
+        agonesHelper.retire()
+        // Already empty: leave now rather than at the next fallback tick.
+        setGameServerState(agonesHelper)
     }
 
     private fun setGameServerState(agonesHelper: AgonesHelper) {
