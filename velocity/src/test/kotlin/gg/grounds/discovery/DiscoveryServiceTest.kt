@@ -125,6 +125,21 @@ class DiscoveryServiceTest {
     }
 
     @Test
+    fun `a lobby that retired itself is outdated until the label goes`() {
+        val service = lobbyService()
+
+        service.registerRunningServers(
+            listOf(lobby("lobby-old", "lobby-old-set", retired = true)),
+            emptyMap(),
+        )
+        assertTrue(service.isOutdated("lobby-old"))
+        assertEquals("lobby-new", service.pickLobby()?.serverInfo?.name)
+
+        service.registerRunningServers(listOf(lobby("lobby-old", "lobby-old-set")), emptyMap())
+        assertFalse(service.isOutdated("lobby-old"))
+    }
+
+    @Test
     fun `unreadable GameServerSets mark nothing outdated`() {
         val service = lobbyService()
         service.refreshRetiredGameServerSets { listOf(gameServerSet("lobby-old-set", 0)) }
@@ -222,13 +237,15 @@ class DiscoveryServiceTest {
         return service
     }
 
-    private fun lobby(name: String, set: String) =
+    private fun lobby(name: String, set: String, retired: Boolean = false) =
         GameServer(
             metadata =
                 Metadata(
                     name = name,
                     labels =
-                        mapOf("grounds/server-type" to "lobby", "agones.dev/gameserverset" to set),
+                        mapOf("grounds/server-type" to "lobby", "agones.dev/gameserverset" to set) +
+                            if (retired) mapOf("agones.dev/sdk-grounds-retired" to "true")
+                            else emptyMap(),
                 ),
             status =
                 Status(

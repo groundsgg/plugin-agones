@@ -21,6 +21,20 @@ private constructor(private val baseUri: URI, private val httpClient: HttpClient
         return send("/allocate", HttpMethod.Post, "Allocate", body = "{}")
     }
 
+    /** Lands on the GameServer as `agones.dev/sdk-<key>`: the SDK prefixes every label it sets. */
+    suspend fun setLabel(key: String, value: String): HttpResponse {
+        return send(
+            "/metadata/label",
+            HttpMethod.Put,
+            "Label",
+            body = gson.toJson(mapOf("key" to key, "value" to value)),
+        )
+    }
+
+    suspend fun shutdown(): HttpResponse {
+        return send("/shutdown", HttpMethod.Post, "Shutdown", body = "{}")
+    }
+
     suspend fun getGameServer(): GameServerResponse {
         val response = send("/gameserver", HttpMethod.Get, "GameServer fetch")
         val body = response.bodyAsText()

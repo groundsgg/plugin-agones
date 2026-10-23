@@ -77,6 +77,8 @@ class DiscoveryService(
     /** Canonical server name -> the GameServerSet that owns it (`agones.dev/gameserverset`). */
     private val owningGameServerSets: MutableMap<String, String> = ConcurrentHashMap()
     @Volatile private var retiredGameServerSets: Set<String> = emptySet()
+    /** Servers that asked to be replaced themselves; see `GameServerRetirement` on Minestom. */
+    private val retiredServers: MutableSet<String> = ConcurrentHashMap.newKeySet()
     @Volatile private var gameServerSetsUnreadable = false
     private val staticServerNames =
         config.staticServers.mapTo(mutableSetOf()) { canonicalServerName(it.name) }
@@ -106,10 +108,15 @@ class DiscoveryService(
      * True when this server belongs to a GameServerSet a Fleet rollout has retired: it only still
      * exists because it was Allocated when the rollout ran. False whenever that cannot be known —
      * no owning set, or GameServerSets unreadable (the proxy's Role lacks them).
+     *
+     * Also true when the server retired itself (its map was re-pinned, say): it labels its own
+     * GameServer and shuts down once it is empty, which is the same exit a rollout gives it.
      */
-    fun isOutdated(serverName: String): Boolean =
-        owningGameServerSets[canonicalServerName(serverName)]?.let { it in retiredGameServerSets }
-            ?: false
+    fun isOutdated(serverName: String): Boolean {
+        val canonicalName = canonicalServerName(serverName)
+        return canonicalName in retiredServers ||
+            owningGameServerSets[canonicalName]?.let { it in retiredGameServerSets } ?: false
+    }
 
     /**
      * Every registered lobby, with its player count and whether it is outdated. The count includes
@@ -394,6 +401,8 @@ class DiscoveryService(
             serverRoles[canonicalName] = serverType
             metadata.labels[GAME_SERVER_SET_LABEL]?.let { owningGameServerSets[canonicalName] = it }
                 ?: owningGameServerSets.remove(canonicalName)
+            if (metadata.labels[RETIRED_LABEL] == "true") retiredServers.add(canonicalName)
+            else retiredServers.remove(canonicalName)
             if (serverType == config.lobbyValue) {
                 lobbyServers.add(serverName)
             } else {
@@ -437,6 +446,7 @@ class DiscoveryService(
             lobbyServers.remove(ownedServer.serverInfo.name)
             serverRoles.remove(canonicalName)
             owningGameServerSets.remove(canonicalName)
+            retiredServers.remove(canonicalName)
             agonesManagedServers.remove(canonicalName, ownedServer)
         }
     }
@@ -447,6 +457,8 @@ class DiscoveryService(
         private const val PLURAL = "gameservers"
         private const val GAME_SERVER_SETS = "gameserversets"
         private const val GAME_SERVER_SET_LABEL = "agones.dev/gameserverset"
+        /** `AgonesHelper.RETIRED_LABEL` as the SDK writes it: every SDK label is prefixed. */
+        private const val RETIRED_LABEL = "agones.dev/sdk-grounds-retired"
         private const val STATIC_SERVER_ROLE = "static"
         private val BAKED_IN_PLACEHOLDERS =
             setOf(
