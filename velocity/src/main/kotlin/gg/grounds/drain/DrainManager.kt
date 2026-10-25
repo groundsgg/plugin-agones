@@ -7,7 +7,10 @@ import com.velocitypowered.api.scheduler.ScheduledTask
 import gg.grounds.AgonesMessage
 import gg.grounds.i18n.Translations
 import gg.grounds.presentation.VelocitySystemMessages
+import gg.grounds.proxy.api.PlayerSessionTransfer
+import gg.grounds.proxy.api.ProxyServiceRegistry
 import java.net.InetSocketAddress
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import org.slf4j.Logger
 
@@ -38,6 +41,10 @@ class DrainManager(
     private val serverRole: (String) -> String?,
     private val lobbyValue: String,
     private val drainTransferCookie: DrainTransferCookie = DrainTransferCookie(),
+    /** Looked up per transfer: plugin-player may register after this plugin starts. */
+    private val sessionTransfer: () -> PlayerSessionTransfer? = {
+        ProxyServiceRegistry.get(PlayerSessionTransfer::class.java)
+    },
     private val transferStager: DrainTransferStager = DrainTransferStager { action ->
         proxy.scheduler.buildTask(plugin, Runnable(action)).delay(1, TimeUnit.SECONDS).schedule()
     },
@@ -153,7 +160,24 @@ class DrainManager(
                     host,
                     config.transferPort,
                 )
-                player.transferToHost(InetSocketAddress.createUnresolved(host, config.transferPort))
+                transferWithHandoff(
+                    sessionTransfer(),
+                    player.uniqueId,
+                    host,
+                    config.transferPort,
+                    direct = {
+                        player.transferToHost(
+                            InetSocketAddress.createUnresolved(host, config.transferPort)
+                        )
+                    },
+                    refuse = {
+                        logger.warn(
+                            "Session handoff unavailable for draining player {}; disconnecting",
+                            player.username,
+                        )
+                        player.disconnect(restartMessage(player))
+                    },
+                )
             }
             val payload = currentStaticServerName(player)?.let(drainTransferCookie::encode)
             if (payload != null) {
@@ -211,4 +235,23 @@ class DrainManager(
         private val ROUND_ROLES = setOf("game", "match")
         private const val STATIC_SERVER_ROLE = "static"
     }
+}
+
+/**
+ * Sends a draining player on through plugin-player's session handoff when it is installed: the
+ * destination proxy admits a transfer only with the single-use token that handoff stores in a
+ * cookie, so a bare transfer packet ends in "This transfer could not be verified". Without
+ * plugin-player the bare transfer is all there is. When the handoff cannot be issued, the player is
+ * [refuse]d with the restart message rather than sent to a proxy that will turn them away.
+ */
+internal fun transferWithHandoff(
+    session: PlayerSessionTransfer?,
+    playerId: UUID,
+    host: String,
+    port: Int,
+    direct: () -> Unit,
+    refuse: () -> Unit,
+) {
+    if (session == null) return direct()
+    if (!session.transferToHost(playerId, host, port)) refuse()
 }
