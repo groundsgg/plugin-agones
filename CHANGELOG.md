@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.1](https://github.com/groundsgg/plugin-agones/compare/v3.2.0...v3.2.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* **drain:** move draining players through the session handoff ([#99](https://github.com/groundsgg/plugin-agones/issues/99)) ([5d20412](https://github.com/groundsgg/plugin-agones/commit/5d20412f3dd6e9fd069c798eb0117878aca81551))
+
 ## [3.2.0](https://github.com/groundsgg/plugin-agones/compare/v3.1.0...v3.2.0) (2026-10-23)
 
 
