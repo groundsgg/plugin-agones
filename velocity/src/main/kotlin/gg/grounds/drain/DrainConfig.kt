@@ -16,6 +16,9 @@ package gg.grounds.drain
  * The catalogue is keyed by continent (`eu=eu.geo.grnds.io:…`), not by datacentre, so the own entry
  * is looked up by `CONTINENT` first and by `REGION` (`de-nbg1`) only as a fallback for a catalogue
  * keyed by datacentre.
+ * - `GROUNDS_DRAIN_TRANSFERS` — `false` makes the drain wait-only whatever the target settings say.
+ *   For the Bedrock proxy: there is no other proxy a Geyser session could be transferred to, and a
+ *   Java transfer target in `REGIONS` would send it somewhere it cannot connect.
  * - `GROUNDS_DRAIN_HTTP_PORT` — loopback port the preStop hook calls. `0` disables the endpoint.
  * - `GROUNDS_DRAIN_TRANSFERS_PER_SECOND` — how many players a drain transfers per second (default
  *   20). A full proxy then reconnects over seconds instead of in one burst of logins.
@@ -33,10 +36,22 @@ data class DrainConfig(
         const val DEFAULT_TRANSFERS_PER_SECOND = 20
 
         fun fromEnv(env: Map<String, String> = System.getenv()): DrainConfig {
+            val transfers =
+                env["GROUNDS_DRAIN_TRANSFERS"]
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let {
+                        it.toBooleanStrictOrNull()
+                            ?: throw IllegalArgumentException(
+                                "GROUNDS_DRAIN_TRANSFERS '$it' must be true or false"
+                            )
+                    } ?: true
             val rawTarget =
-                env["GROUNDS_DRAIN_TRANSFER_HOST"]?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: ownRegionTarget(env["REGIONS"], env["CONTINENT"])
-                    ?: ownRegionTarget(env["REGIONS"], env["REGION"])
+                if (!transfers) null
+                else
+                    env["GROUNDS_DRAIN_TRANSFER_HOST"]?.trim()?.takeIf { it.isNotEmpty() }
+                        ?: ownRegionTarget(env["REGIONS"], env["CONTINENT"])
+                        ?: ownRegionTarget(env["REGIONS"], env["REGION"])
             // rsplit, because a host can contain no colon but a port always follows the last one.
             val host =
                 rawTarget?.substringBeforeLast(':', rawTarget)?.trim()?.takeIf { it.isNotEmpty() }

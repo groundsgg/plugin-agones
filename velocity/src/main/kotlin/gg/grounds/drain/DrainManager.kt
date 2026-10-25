@@ -28,6 +28,9 @@ import org.slf4j.Logger
  *   inside a round are never transferred — the round either ends within the grace period (and the
  *   lobby connect becomes the transfer), or the pod's termination ends the session. A transfer
  *   would end the round just as surely, only earlier.
+ * - after the deadline, a player whose round ends is transferred on the way back to a lobby, or,
+ *   with no transfer target (wait-only, the Bedrock proxy), disconnected with the restart message,
+ *   so the proxy empties as rounds end and the grace period never has to cut a round short.
  *
  * "Inside a round" is decided by the server's `grounds/server-type` role: only the `game` and
  * `match` roles defer the transfer. A server that discovery has no role for cannot be a protected
@@ -68,6 +71,13 @@ class DrainManager(
     var isDraining: Boolean = false
         private set
 
+    /**
+     * Past the deadline, a player whose round just ended is moved on like everyone else was, or
+     * told the proxy is restarting when there is nowhere to move them. Left alone they would sit in
+     * a lobby on this proxy until the pod is killed.
+     */
+    @Volatile private var deadlinePassed = false
+
     fun playersRemaining(): Int = proxy.allPlayers.size
 
     /** Starts the drain. Idempotent — a second call reports `false` and changes nothing. */
@@ -97,10 +107,11 @@ class DrainManager(
     fun interceptConnect(player: Player, targetServer: String): Boolean {
         if (!isDraining) return false
         if (shouldDefer(serverRole(targetServer), lobbyValue)) return false
-        return transferOut(player, force = false)
+        return transferOut(player, force = deadlinePassed)
     }
 
     private fun onDeadline() {
+        deadlinePassed = true
         val remaining = proxy.allPlayers
         if (remaining.isEmpty()) return
         val (inRound, drainable) = remaining.partition { shouldDefer(roleOf(it), lobbyValue) }

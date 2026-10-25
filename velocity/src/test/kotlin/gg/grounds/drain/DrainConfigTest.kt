@@ -43,6 +43,28 @@ class DrainConfigTest {
     }
 
     @Test
+    fun `transfers off means wait-only even with a target and a catalogue`() {
+        val cfg =
+            DrainConfig.fromEnv(
+                env =
+                    mapOf(
+                        "GROUNDS_DRAIN_TRANSFERS" to "false",
+                        "GROUNDS_DRAIN_TRANSFER_HOST" to "eu.geo.grnds.io",
+                        "REGIONS" to "eu=eu.geo.grnds.io:30565",
+                        "CONTINENT" to "eu",
+                    )
+            )
+        assertNull(cfg.transferHost)
+    }
+
+    @Test
+    fun `a transfers value that is not a boolean fails loud`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DrainConfig.fromEnv(env = mapOf("GROUNDS_DRAIN_TRANSFERS" to "nope"))
+        }
+    }
+
+    @Test
     fun `bad transfer port fails loud instead of draining into nowhere`() {
         assertThrows(IllegalArgumentException::class.java) {
             DrainConfig.fromEnv(env = mapOf("GROUNDS_DRAIN_TRANSFER_HOST" to "host:notaport"))
