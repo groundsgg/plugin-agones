@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0](https://github.com/groundsgg/plugin-agones/compare/v3.2.1...v3.3.0) (2026-10-25)
+
+
+### Features
+
+* **drain:** wait-only drains and moving players on after the deadline ([#101](https://github.com/groundsgg/plugin-agones/issues/101)) ([1cd8750](https://github.com/groundsgg/plugin-agones/commit/1cd87504293813889684cf050343ab57ea7dd322))
+
 ## [3.2.1](https://github.com/groundsgg/plugin-agones/compare/v3.2.0...v3.2.1) (2026-10-25)
 
 
