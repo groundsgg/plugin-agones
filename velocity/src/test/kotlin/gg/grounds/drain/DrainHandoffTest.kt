@@ -15,7 +15,6 @@ class DrainHandoffTest {
             player,
             "eu.geo.grnds.io",
             25565,
-            direct = { calls += "direct" },
             refuse = { calls += "refuse" },
         )
 
@@ -35,8 +34,8 @@ class DrainHandoffTest {
     }
 
     @Test
-    fun `without plugin-player the bare transfer is used`() {
+    fun `without plugin-player the transfer is refused`() {
         drain(null)
-        assertEquals(listOf("direct"), calls)
+        assertEquals(listOf("refuse"), calls)
     }
 }
