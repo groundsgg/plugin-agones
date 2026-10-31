@@ -9,7 +9,6 @@ import gg.grounds.i18n.Translations
 import gg.grounds.presentation.VelocitySystemMessages
 import gg.grounds.proxy.api.PlayerSessionTransfer
 import gg.grounds.proxy.api.ProxyServiceRegistry
-import java.net.InetSocketAddress
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import org.slf4j.Logger
@@ -78,6 +77,23 @@ class DrainManager(
      */
     @Volatile private var deadlinePassed = false
 
+    private val retryQueue =
+        RetryingTransfers<Player, UUID>(
+            config.transfersPerSecond,
+            { it.uniqueId },
+            { it.isActive && !shouldDefer(roleOf(it), lobbyValue) },
+            { player ->
+                runCatching { transferOut(player, deadlinePassed) }
+                    .getOrElse {
+                        logger.warn("Failed to transfer draining player {}", player.username, it)
+                        if (deadlinePassed) player.disconnect(restartMessage(player))
+                        deadlinePassed
+                    }
+            },
+        )
+    private var tickerRunning = false
+    private val sentTransfers = java.util.concurrent.ConcurrentHashMap.newKeySet<UUID>()
+
     fun playersRemaining(): Int = proxy.allPlayers.size
 
     /** Starts the drain. Idempotent — a second call reports `false` and changes nothing. */
@@ -135,24 +151,18 @@ class DrainManager(
      * Transfers [players] at [DrainConfig.transfersPerSecond]: the first batch now, the rest one
      * batch a second. Whoever left or walked into a round while queued is skipped.
      */
+    @Synchronized
     private fun pace(players: List<Player>, force: Boolean) {
-        val paced =
-            PacedTransfers(
-                players,
-                config.transfersPerSecond,
-                stillDue = { it.isActive && !shouldDefer(roleOf(it), lobbyValue) },
-                transfer = { transferOut(it, force) },
-                onFailure = { player, error ->
-                    logger.warn("Failed to transfer draining player {}", player.username, error)
-                },
-            )
-        if (paced.tick()) return
-        logger.info(
-            "Transferring the remaining {} players at {}/s",
-            paced.remaining,
-            config.transfersPerSecond,
-        )
-        ticker.everySecondUntilDone(paced::tick)
+        players.forEach(retryQueue::offer)
+        if (tickerRunning) return
+        tickerRunning = true
+        ticker.everySecondUntilDone {
+            synchronized(this) {
+                val done = retryQueue.tick()
+                if (done) tickerRunning = false
+                done
+            }
+        }
     }
 
     /**
@@ -162,8 +172,11 @@ class DrainManager(
      * message rather than the raw proxy-shutdown kick.
      */
     private fun transferOut(player: Player, force: Boolean): Boolean {
+        if (sentTransfers.contains(player.uniqueId)) return true
+        if (transferStager.isPending(player.uniqueId.toString())) return true
         val host = config.transferHost
         if (host != null && player.protocolVersion >= ProtocolVersion.MINECRAFT_1_20_5) {
+            var issued = true
             val transfer = {
                 logger.info(
                     "Draining player via transfer (player={}, target={}:{})",
@@ -176,19 +189,22 @@ class DrainManager(
                     player.uniqueId,
                     host,
                     config.transferPort,
-                    direct = {
-                        player.transferToHost(
-                            InetSocketAddress.createUnresolved(host, config.transferPort)
-                        )
-                    },
                     refuse = {
-                        logger.warn(
-                            "Session handoff unavailable for draining player {}; disconnecting",
-                            player.username,
-                        )
-                        player.disconnect(restartMessage(player))
+                        if (deadlinePassed) {
+                            logger.warn(
+                                "Drain deadline reached without transfer capacity (player={})",
+                                player.username,
+                            )
+                            player.disconnect(restartMessage(player))
+                        } else {
+                            issued = false
+                            // Global issuance budget is shared by all draining sources. Retry
+                            // later; do not mint a ticket until this actual send attempt.
+                            pace(listOf(player), force = false)
+                        }
                     },
                 )
+                if (issued) sentTransfers.add(player.uniqueId)
             }
             val payload = currentStaticServerName(player)?.let(drainTransferCookie::encode)
             if (payload != null) {
@@ -202,7 +218,7 @@ class DrainManager(
             } else {
                 transfer()
             }
-            return true
+            return issued
         }
         if (force) {
             player.disconnect(restartMessage(player))
@@ -251,18 +267,15 @@ class DrainManager(
 /**
  * Sends a draining player on through plugin-player's session handoff when it is installed: the
  * destination proxy admits a transfer only with the single-use token that handoff stores in a
- * cookie, so a bare transfer packet ends in "This transfer could not be verified". Without
- * plugin-player the bare transfer is all there is. When the handoff cannot be issued, the player is
- * [refuse]d with the restart message rather than sent to a proxy that will turn them away.
+ * cookie. Missing plugin-player or capacity calls [refuse]; no bare transfer can bypass admission.
  */
 internal fun transferWithHandoff(
     session: PlayerSessionTransfer?,
     playerId: UUID,
     host: String,
     port: Int,
-    direct: () -> Unit,
     refuse: () -> Unit,
 ) {
-    if (session == null) return direct()
+    if (session == null) return refuse()
     if (!session.transferToHost(playerId, host, port)) refuse()
 }
