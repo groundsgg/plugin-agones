@@ -5,6 +5,28 @@ import org.junit.jupiter.api.Test
 
 class RetryingTransfersTest {
     @Test
+    fun `persistently refused heads do not starve eligible players behind them`() {
+        val sent = mutableListOf<Int>()
+        val queue =
+            RetryingTransfers<Int, Int>(
+                20,
+                { it },
+                { true },
+                {
+                    if (it <= 20) false
+                    else {
+                        sent += it
+                        true
+                    }
+                },
+            )
+        (1..25).forEach(queue::offer)
+        queue.tick()
+        queue.tick()
+        assertEquals((21..25).toList(), sent)
+    }
+
+    @Test
     fun `full shared budget queues once and retries without minting another ticket`() {
         var available = false
         val sent = mutableListOf<Int>()

@@ -27,6 +27,10 @@ internal class RetryingTransfers<T, K>(
         val batch = queue.entries.take(perSecond).map { it.key to it.value }
         for ((id, player) in batch) {
             if (!stillDue(player) || transfer(player)) queue.remove(id)
+            else {
+                queue.remove(id)
+                queue[id] = player
+            }
         }
         return queue.isEmpty()
     }
