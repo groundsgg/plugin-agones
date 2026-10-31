@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.1](https://github.com/groundsgg/plugin-agones/compare/v3.3.0...v3.3.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **drain:** retry bounded handoffs before the shutdown deadline ([#103](https://github.com/groundsgg/plugin-agones/issues/103)) ([e6d059c](https://github.com/groundsgg/plugin-agones/commit/e6d059cd19cdd59d726ddc7c330370cc420a9dcd))
+
 ## [3.3.0](https://github.com/groundsgg/plugin-agones/compare/v3.2.1...v3.3.0) (2026-10-25)
 
 
