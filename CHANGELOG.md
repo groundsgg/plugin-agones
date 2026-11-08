@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.2](https://github.com/groundsgg/plugin-agones/compare/v3.3.1...v3.3.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **velocity:** bound failed lobby fallback chains ([#106](https://github.com/groundsgg/plugin-agones/issues/106)) ([88aaa73](https://github.com/groundsgg/plugin-agones/commit/88aaa73004dec5ba156e56774e013983f72340f3))
+
 ## [3.3.1](https://github.com/groundsgg/plugin-agones/compare/v3.3.0...v3.3.1) (2026-10-31)
 
 
