@@ -48,13 +48,14 @@ class LobbyPlacement(
         playerId: UUID? = null,
         exclude: String? = null,
         preferred: String? = null,
+        excluded: Set<String> = emptySet(),
     ): String? {
         // A player placed again (kicked before arriving, say) must not count against themselves.
         if (playerId != null) reservations.remove(playerId)
+        val excludedNames = excluded.mapTo(mutableSetOf(), ::canonicalServerName)
+        exclude?.let { excludedNames.add(canonicalServerName(it)) }
         val candidates =
-            withReservations(observed).filter {
-                exclude == null || canonicalServerName(it.name) != canonicalServerName(exclude)
-            }
+            withReservations(observed).filter { canonicalServerName(it.name) !in excludedNames }
         val home =
             preferred?.let { name ->
                 candidates.firstOrNull {

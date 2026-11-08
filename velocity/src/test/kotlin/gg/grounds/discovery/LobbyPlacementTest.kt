@@ -84,6 +84,20 @@ class LobbyPlacementTest {
     }
 
     @Test
+    fun `every failed lobby is excluded case insensitively and the selected lobby is reserved`() {
+        val placement = LobbyPlacement()
+        val player = UUID.randomUUID()
+        val observed =
+            listOf(Candidate("lobby-a", 50), Candidate("lobby-b", 40), Candidate("lobby-c", 1))
+
+        assertEquals(
+            "lobby-c",
+            placement.place(observed, player, excluded = setOf("LOBBY-A", "lobby-b")),
+        )
+        assertEquals(2, placement.withReservations(observed).last().players)
+    }
+
+    @Test
     fun `a failed join placed again moves its reservation instead of keeping both`() {
         val placement = LobbyPlacement(cap = 100)
         val player = UUID.randomUUID()
