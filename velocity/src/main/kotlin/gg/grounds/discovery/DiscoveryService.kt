@@ -134,8 +134,11 @@ class DiscoveryService(
         exclude: String? = null,
         playerId: UUID? = null,
         preferred: String? = null,
+        excluded: Set<String> = emptySet(),
     ): RegisteredServer? {
-        val chosen = placement.place(observedLobbies(), playerId, exclude, preferred) ?: return null
+        val chosen =
+            placement.place(observedLobbies(), playerId, exclude, preferred, excluded)
+                ?: return null
         return proxyServer.getServer(chosen).orElse(null)
     }
 

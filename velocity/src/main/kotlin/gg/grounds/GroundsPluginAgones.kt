@@ -119,7 +119,9 @@ constructor(private val proxyServer: ProxyServer, private val logger: Logger) {
                 { serverName ->
                     discoveryService.getServerRole(serverName) == discoveryConfig.lobbyValue
                 },
-                { exclude, playerId -> discoveryService.pickLobby(exclude, playerId) },
+                { excluded, playerId ->
+                    discoveryService.pickLobby(playerId = playerId, excluded = excluded)
+                },
             ),
         )
         outdatedLobbyMover =
