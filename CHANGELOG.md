@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.0](https://github.com/groundsgg/plugin-agones/compare/v3.3.2...v3.4.0) (2026-11-27)
+
+
+### Features
+
+* render system chat badges for eligible recipients ([#108](https://github.com/groundsgg/plugin-agones/issues/108)) ([7617b8d](https://github.com/groundsgg/plugin-agones/commit/7617b8dc745bd42f178e3deedaf487b9ba827518))
+
 ## [3.3.2](https://github.com/groundsgg/plugin-agones/compare/v3.3.1...v3.3.2) (2026-11-08)
 
 
